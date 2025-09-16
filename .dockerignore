@@ -1,0 +1,82 @@
+# Data directories - user content not needed in image
+data/uploads/
+data/processed/
+data/highscores/
+data/backup*/
+data/debug*/
+
+# Development files
+*.py[cod]
+__pycache__/
+.Python
+*.so
+*.egg
+*.egg-info/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Version control
+.git/
+.gitignore
+
+# Docker files themselves
+Dockerfile*
+docker-compose*
+*.tar
+*.tar.gz
+
+# Documentation (README will be copied explicitly if needed)
+*.md
+docs/
+
+# Development scripts and backups
+messedup*
+*_backup*
+*_old*
+test_*
+debug_*
+*.bak
+*.backup
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+
+# Environment files
+.env*

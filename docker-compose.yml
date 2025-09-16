@@ -1,0 +1,25 @@
+services:
+  reactoverdrive:
+    build: .
+    image: reactoverdrive:latest
+    ports:
+      - "5001:8080"
+    volumes:
+      # User music data (uploads and processed songs)
+      - reactoverdrive_usermusic_uploads:/app/data/uploads
+      - reactoverdrive_usermusic_processed:/app/data/processed
+      # High score data
+      - reactoverdrive_highscores:/app/data/highscores
+      # Core music is embedded in the image - no volume needed
+    restart: unless-stopped
+    container_name: reactoverdrive
+    environment:
+      - APP_NAME=ReactOverdrive
+
+volumes:
+  reactoverdrive_usermusic_uploads:
+    driver: local
+  reactoverdrive_usermusic_processed:
+    driver: local
+  reactoverdrive_highscores:
+    driver: local

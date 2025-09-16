@@ -1,0 +1,135 @@
+# Data directories - user content and uploads
+data/uploads/
+data/processed/
+data/highscores/
+data/backup*/
+data/debug*/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+debug.log
+error.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+temp/
+tmp/
+
+# Docker
+*.tar
+*.tar.gz
+reactoverdrive-image.tar*
+
+# Development files
+messedup*
+*_backup*
+*_old*
+test_*
+debug_*
+
+# Music files that might be accidentally added
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.m4a
+*.aac
+!client/assets/music/band/Unknown_Artist/Blood_Ocean/Blood\ Ocean.mp3
+!client/assets/soundfx/*.mp3
+
+# Analysis and metadata files (except core music)
+*_analysis.json
+*_info.json
+*_scores.json
+*_debug.log
+!client/assets/music/band/Unknown_Artist/Blood_Ocean/Blood\ Ocean_analysis.json
+!client/assets/music/band/Unknown_Artist/Blood_Ocean/Blood\ Ocean_info.json
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package files
+*.tgz
+*.tar.gz
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.sql
+*.dump
+
+# Personal Deployment
+deploy.sh

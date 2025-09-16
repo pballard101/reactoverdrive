@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Upload - ReactOverdrive</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .upload-form {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .file-input {
+            margin: 10px 0;
+            width: 100%;
+        }
+        .submit-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .submit-btn:hover {
+            background-color: #2980b9;
+        }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-bar {
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .log-container {
+            background-color: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+            display: none;
+        }
+        /* Styling for yellow text in logs - changed to bright purple for better readability */
+        .log-container .yellow, 
+        .log-container span[style*="color: yellow"], 
+        .log-container span[style*="color: #ffff00"] {
+            color: #cc44ff !important; /* Bright purple color */
+        }
+        .song-list {
+            margin-top: 30px;
+        }
+        .song-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .song-title {
+            font-weight: bold;
+        }
+        .song-artist {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .debug-link {
+            font-size: 12px;
+            color: #6c757d;
+            text-decoration: none;
+            margin-left: 10px;
+        }
+        .debug-link:hover {
+            text-decoration: underline;
+        }
+        .back-button {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #3498db;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Music Upload for ReactOverdrive</h1>
+        
+        <div class="upload-form">
+            <h2>Upload MP3 File</h2>
+            <form id="upload-form" enctype="multipart/form-data">
+                <input type="file" id="file-input" name="file" accept=".mp3" class="file-input">
+                <button type="submit" class="submit-btn">Upload & Process</button>
+            </form>
+            
+            <div class="progress-container" id="progress-container">
+                <p>Uploading...</p>
+                <div class="progress-bar">
+                    <div class="progress" id="progress"></div>
+                </div>
+            </div>
+            
+            <div class="status" id="status-message"></div>
+            
+            <div class="log-container" id="log-container"></div>
+        </div>
+        
+        <div class="song-list" id="song-list">
+            <h2>Available Songs</h2>
+            <div id="songs-container">
+                <p>Loading songs...</p>
+            </div>
+        </div>
+        
+        <a href="index.html" class="back-button">← Return to Game</a>
+    </div>
+    
+    <script>
+        // Function to show status message
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.className = 'status ' + type;
+            statusEl.style.display = 'block';
+        }
+        
+        // Function to update progress bar
+        function updateProgress(percent) {
+            document.getElementById('progress').style.width = percent + '%';
+        }
+        
+        // Function to load and display debug log
+        function loadDebugLog(logUrl) {
+            const logContainer = document.getElementById('log-container');
+            logContainer.style.display = 'block';
+            logContainer.textContent = 'Loading debug log...';
+            
+            fetch(logUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load debug log');
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    logContainer.textContent = text;
+                })
+                .catch(error => {
+                    logContainer.textContent = 'Error loading debug log: ' + error.message;
+                });
+        }
+        
+        // Handle form submission
+        document.getElementById('upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('Please select an MP3 file', 'error');
+                return;
+            }
+            
+            // Create FormData object
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show progress container
+            document.getElementById('progress-container').style.display = 'block';
+            
+            // Hide previous status and log
+            document.getElementById('status-message').style.display = 'none';
+            document.getElementById('log-container').style.display = 'none';
+            
+            // Upload file
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showStatus('Error: ' + data.error, 'error');
+                } else {
+                    showStatus('File uploaded successfully and processing started', 'success');
+                    
+                    // Check if debug log path is available
+                    if (data.debugLogPath) {
+                        // Add a link to view the debug log
+                        const statusEl = document.getElementById('status-message');
+                        const debugLink = document.createElement('a');
+                        debugLink.href = '#';
+                        debugLink.textContent = 'View Processing Log';
+                        debugLink.className = 'debug-link';
+                        debugLink.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            loadDebugLog(data.debugLogPath);
+                        });
+                        
+                        statusEl.appendChild(document.createTextNode(' '));
+                        statusEl.appendChild(debugLink);
+                        
+                        // Auto-load debug log after 2 seconds
+                        setTimeout(() => {
+                            loadDebugLog(data.debugLogPath);
+                        }, 2000);
+                    }
+                    
+                    // Refresh the song list after 5 seconds
+                    setTimeout(loadSongs, 5000);
+                }
+                
+                // Hide progress
+                document.getElementById('progress-container').style.display = 'none';
+            })
+            .catch(error => {
+                showStatus('Error: ' + error.message, 'error');
+                document.getElementById('progress-container').style.display = 'none';
+            });
+        });
+        
+        // Function to load songs
+        function loadSongs() {
+            fetch('/songs')
+                .then(response => response.json())
+                .then(data => {
+                    const songsContainer = document.getElementById('songs-container');
+                    
+                    if (!data.songs || data.songs.length === 0) {
+                        songsContainer.innerHTML = '<p>No songs available. Upload some MP3 files to get started.</p>';
+                        return;
+                    }
+                    
+                    let html = '';
+                    data.songs.forEach(song => {
+                        html += `
+                            <div class="song-item">
+                                <div class="song-title">${song.title}</div>
+                                <div class="song-artist">by ${song.artist}</div>
+                                <div>
+                                    <a href="index.html?song=${encodeURIComponent(song.path + '/' + song.filename)}" target="_blank">Play in Game</a>
+                                    ${song.hasDebug ? `<a href="#" class="debug-link" data-debug="${song.debugFile}">View Debug Log</a>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    songsContainer.innerHTML = html;
+                    
+                    // Add event listeners to debug links
+                    document.querySelectorAll('.debug-link').forEach(link => {
+                        link.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            const debugFile = this.getAttribute('data-debug');
+                            if (debugFile) {
+                                loadDebugLog('/debug/' + debugFile);
+                            }
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading songs:', error);
+                    document.getElementById('songs-container').innerHTML = 
+                        '<p>Error loading songs: ' + error.message + '</p>';
+                });
+        }
+        
+        // Load songs when page loads
+        document.addEventListener('DOMContentLoaded', loadSongs);
+    </script>
+</body>
+</html>
