@@ -61,7 +61,7 @@ export default {
     
     // Global settings
     settings: {
-        sfxEnabled: true,
+        sfxEnabled: false,
         sfxVolume: 0.7,
         defaultPool: 2
     }

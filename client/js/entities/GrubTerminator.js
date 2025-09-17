@@ -19,7 +19,7 @@ export default class GrubTerminator {
         this.isHidden = false;
         this.hiddenTimer = 0; // Time remaining while hidden
         this.lastShotTime = 0;
-        this.shotCooldown = 1500; // 1.5 seconds between shots
+        this.shotCooldown = 960; // 0.96 seconds between shots (40% faster total)
         
         // Movement properties
         this.moveSpeed = 120; // pixels per second
@@ -350,7 +350,7 @@ export default class GrubTerminator {
             
             if (projectile.phase === 'expanding') {
                 // Expand the circle
-                projectile.currentRadius += 1.65; // Growth rate (10% faster)
+                projectile.currentRadius += 2.4; // Growth rate (40% faster total)
                 
                 if (projectile.currentRadius >= projectile.maxRadius) {
                     projectile.phase = 'contracting';
@@ -358,7 +358,7 @@ export default class GrubTerminator {
                 }
             } else if (projectile.phase === 'contracting') {
                 // Contract the circle
-                projectile.currentRadius -= 2.2; // Contraction rate (10% faster)
+                projectile.currentRadius -= 3.1; // Contraction rate (40% faster total)
                 
                 if (projectile.currentRadius <= 3) {
                     // Hit! Trigger damage on the target
