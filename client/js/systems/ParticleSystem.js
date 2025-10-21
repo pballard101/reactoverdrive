@@ -226,7 +226,7 @@ export default class ParticleSystem {
     }
     
     createStarfield() {
-        console.log("Creating starfield background");
+        // console.log("Creating starfield background");
         
         // Get game dimensions for responsive positioning
         const gameWidth = this.scene.gameWidth || 1280;
@@ -413,7 +413,7 @@ export default class ParticleSystem {
     }
     
     createSatelliteEmitter(x, y, segmentType) {
-        console.log("Creating satellite using NATIVE SHAPES WITHOUT TEXTURES");
+        // console.log("Creating satellite using NATIVE SHAPES WITHOUT TEXTURES");
         
         try {
             // Get color based on segment type - more vibrant colors
@@ -658,7 +658,7 @@ export default class ParticleSystem {
     
     createExplosion(x, y, size, color) {
         try {
-            console.log(`Creating explosion at (${x}, ${y}) with size ${size} and color ${color}`);
+            // console.log(`Creating explosion at (${x}, ${y}) with size ${size} and color ${color}`);
             
             // SIMPLIFIED APPROACH: Just use circles for the explosion effect
             // No particle emitters that might cause texture issues
@@ -721,7 +721,7 @@ export default class ParticleSystem {
             const particleCount = Math.floor(strength * 20); // Reduced from 30
             
             // Use circles instead of textures for better reliability
-            console.log(`Creating ${particleCount} beat particles at (${x}, ${y})`);
+            // console.log(`Creating ${particleCount} beat particles at (${x}, ${y})`);
             
             // Random colors for particles
             const colors = [0xffffff, 0x00ffff, 0xff00ff, 0xffff00, 0x00ff88];
@@ -791,7 +791,7 @@ export default class ParticleSystem {
                 return;
             }
             
-            console.log(`Creating color change effect at (${x}, ${y}) with color ${color} and size ${size}`);
+            // console.log(`Creating color change effect at (${x}, ${y}) with color ${color} and size ${size}`);
             
             // Get game dimensions for scaling effects
             const gameWidth = this.scene.gameWidth || 1280;
@@ -953,7 +953,7 @@ export default class ParticleSystem {
         this.showCentralParticles = !this.showCentralParticles;
         this.centralParticlesPersist = this.showCentralParticles; // Remember the setting
         
-        console.log(`Central particles ${this.showCentralParticles ? 'enabled' : 'disabled'}`);
+        // console.log(`Central particles ${this.showCentralParticles ? 'enabled' : 'disabled'}`);
         
         // Find and toggle the central emitter
         if (this.particleEmitters && this.particleEmitters.length > 0) {
@@ -965,7 +965,7 @@ export default class ParticleSystem {
                     
                     try {
                         if (this.showCentralParticles) {
-                            console.log("Starting central emitter");
+                            // console.log("Starting central emitter");
                             if (typeof emitterObj.emitter.start === 'function') {
                                 emitterObj.emitter.start();
                             } else if (typeof emitterObj.emitter.setEmitting === 'function') {
@@ -975,7 +975,7 @@ export default class ParticleSystem {
                             }
                             emitterObj.active = true;
                         } else {
-                            console.log("Stopping central emitter");
+                            // console.log("Stopping central emitter");
                             if (typeof emitterObj.emitter.stop === 'function') {
                                 emitterObj.emitter.stop();
                             } else if (typeof emitterObj.emitter.setEmitting === 'function') {
@@ -1058,7 +1058,7 @@ export default class ParticleSystem {
     
     toggleSatelliteParticles() {
         this.showSatelliteParticles = !this.showSatelliteParticles;
-        console.log(`Satellite particles ${this.showSatelliteParticles ? 'enabled' : 'disabled'}`);
+        // console.log(`Satellite particles ${this.showSatelliteParticles ? 'enabled' : 'disabled'}`);
         
         // Find and toggle all satellite emitters
         if (this.particleEmitters && this.particleEmitters.length > 0) {

@@ -1043,14 +1043,25 @@ export default class GameScene extends Phaser.Scene {
                 // Check for collision
                 if (Phaser.Geom.Intersects.RectangleToRectangle(bulletBounds, enemy.getBounds())) {
                     // Handle collision
-                    
+                    console.log("🎯 Bullet collision detected with", enemy.enemyType, "at bullet pos:", bullet.x, bullet.y, "enemy pos:", enemy.x, enemy.y);
+
                     // Deactivate bullet
                     bullet.setActive(false);
                     bullet.setVisible(false);
-                    
-                    // Clean up bullet trail
-                    if (bullet.trailEmitter && typeof bullet.trailEmitter.stop === 'function') {
-                        bullet.trailEmitter.stop();
+
+                    // Clean up bullet trail immediately on collision
+                    if (bullet.trailEmitter) {
+                        // Skip the fade animation and destroy immediately for collisions
+                        if (bullet.trailEmitter.graphics && bullet.trailEmitter.graphics.active) {
+                            bullet.trailEmitter.graphics.destroy();
+                        }
+                        bullet.trailEmitter = null;
+                    }
+
+                    // Clean up follow event timer
+                    if (bullet.followEvent) {
+                        bullet.followEvent.remove();
+                        bullet.followEvent = null;
                     }
                     
                     // Use enemyManager to destroy the enemy properly
@@ -1384,23 +1395,76 @@ export default class GameScene extends Phaser.Scene {
     updateBullets() {
         if (!this.bullets) return;
 
+        // DEBUG: Confirm our fixes are loaded (remove this after testing)
+        if (!this.debugLogged) {
+            console.log("✅ Updated updateBullets() with trail cleanup fixes loaded");
+            this.debugLogged = true;
+        }
+
         // Define boundaries with margins based on game dimensions
         const margin = 10;
         const maxX = this.gameWidth + margin;
         const maxY = this.gameHeight + margin;
 
         this.bullets.getChildren().forEach(bullet => {
+            // ALWAYS check for orphaned trail graphics, even on inactive bullets
+            if (bullet.trailEmitter && bullet.trailEmitter.graphics && bullet.trailEmitter.graphics.active) {
+                // If bullet is inactive but trail still exists, clean it up
+                if (!bullet.active || !bullet.visible) {
+                    console.log("🧹 Cleaning up orphaned trail graphics on inactive bullet");
+                    bullet.trailEmitter.graphics.destroy();
+                    bullet.trailEmitter = null;
+                    if (bullet.followEvent) {
+                        bullet.followEvent.remove();
+                        bullet.followEvent = null;
+                    }
+                    return;
+                }
+            }
+
             if (bullet.active) {
+
+                // Debug: Check for bullets with zero velocity (stuck bullets)
+                if (bullet.body && (bullet.body.velocity.x === 0 && bullet.body.velocity.y === 0)) {
+                    console.log("🐛 Found stuck bullet at:", bullet.x, bullet.y, "Age:", this.time.now - bullet.creationTime);
+
+                    // Clean up stuck bullets immediately
+                    bullet.setActive(false);
+                    bullet.setVisible(false);
+
+                    // Clean up trail immediately
+                    if (bullet.trailEmitter) {
+                        if (bullet.trailEmitter.graphics && bullet.trailEmitter.graphics.active) {
+                            bullet.trailEmitter.graphics.destroy();
+                        }
+                        bullet.trailEmitter = null;
+                    }
+
+                    if (bullet.followEvent) {
+                        bullet.followEvent.remove();
+                        bullet.followEvent = null;
+                    }
+
+                    return; // Skip boundary check for this bullet
+                }
+
                 if (bullet.y < -margin || bullet.y > maxY || bullet.x < -margin || bullet.x > maxX) {
                     bullet.setActive(false);
                     bullet.setVisible(false);
                     
-                    // Clean up bullet trail if it exists
-                    if (bullet.trailEmitter && typeof bullet.trailEmitter.stop === 'function') {
-                        bullet.trailEmitter.stop();
-                        if (typeof bullet.trailEmitter.destroy === 'function') {
-                            bullet.trailEmitter.destroy();
+                    // Clean up bullet trail if it exists - immediate cleanup for off-screen bullets
+                    if (bullet.trailEmitter) {
+                        // Skip the fade animation and destroy immediately for off-screen bullets
+                        if (bullet.trailEmitter.graphics && bullet.trailEmitter.graphics.active) {
+                            bullet.trailEmitter.graphics.destroy();
                         }
+                        bullet.trailEmitter = null;
+                    }
+
+                    // Clean up follow event timer if it exists
+                    if (bullet.followEvent) {
+                        bullet.followEvent.remove();
+                        bullet.followEvent = null;
                     }
                 }
             }

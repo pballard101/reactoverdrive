@@ -27,22 +27,34 @@ export default class SoundManager {
      */
     loadSavedSettings() {
         try {
-            // Load sound effects enabled/disabled state (default true)
+            // Load sound effects enabled/disabled state
             const sfxMuted = localStorage.getItem('reactoverdrive_sfx_muted');
-            this.soundsEnabled = sfxMuted !== 'true'; // Inverted because muted means disabled
-            
+            if (sfxMuted !== null) {
+                // Use saved setting if it exists
+                this.soundsEnabled = sfxMuted !== 'true'; // Inverted because muted means disabled
+            } else {
+                // Use default from soundConfig.js - import it first
+                import('../soundConfig.js').then(configModule => {
+                    const defaultEnabled = configModule.default?.settings?.sfxEnabled ?? true;
+                    this.soundsEnabled = defaultEnabled;
+                    console.log("🔊 Using soundConfig default for sfxEnabled:", defaultEnabled);
+                });
+                // Temporary value until import resolves
+                this.soundsEnabled = false; // Default to false per soundConfig.js
+            }
+
             // Load sound effects volume (default 70%)
             const sfxVolume = localStorage.getItem('reactoverdrive_sfx_volume');
             this.masterVolume = sfxVolume ? parseFloat(sfxVolume) : 0.7;
-            
+
             console.log("🔊 SoundManager loaded settings:", {
                 enabled: this.soundsEnabled,
                 volume: this.masterVolume
             });
         } catch (error) {
             console.warn("⚠️ Error loading SoundManager settings:", error);
-            // Use defaults
-            this.soundsEnabled = true;
+            // Use defaults from soundConfig.js
+            this.soundsEnabled = false; // Match soundConfig.js default
             this.masterVolume = 0.7;
         }
     }
@@ -148,8 +160,12 @@ export default class SoundManager {
     
     toggleSounds() {
         this.soundsEnabled = !this.soundsEnabled;
+
+        // Save the preference to localStorage
+        localStorage.setItem('reactoverdrive_sfx_muted', !this.soundsEnabled);
+
         console.log(`🔊 Sound effects ${this.soundsEnabled ? 'enabled' : 'disabled'}`);
-        
+
         // Show a notification to the player
         if (this.scene.uiManager && typeof this.scene.uiManager.showNotification === 'function') {
             this.scene.uiManager.showNotification(
