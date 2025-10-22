@@ -217,6 +217,9 @@ export default class MenuScene extends Phaser.Scene {
         }).setOrigin(0.5).setInteractive();
 
         playButton.on('pointerdown', () => {
+            // Enter fullscreen before starting the game
+            this.scale.startFullscreen();
+
             this.startGame(); // Call startGame instead of directly starting the scene
         });
         

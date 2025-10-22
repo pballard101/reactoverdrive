@@ -5,6 +5,7 @@ import GrubTerminator from '../entities/GrubTerminator.js';
 import AudioAnalyzer from '../systems/AudioAnalyzer.js';
 import ParticleSystem from '../systems/ParticleSystem.js';
 import UIManager from '../systems/UIManager.js';
+import PowerupManager from '../systems/PowerupManager.js';
 import TextureManager from '../utils/TextureManager.js';
 import SoundManager from '../systems/SoundManager.js';
 import CameraManager from '../systems/CameraManager.js';
@@ -239,10 +240,13 @@ export default class GameScene extends Phaser.Scene {
         
         // Create pause menu FIRST so settings are loaded before audio systems
         this.pauseMenu = new PauseMenu(this);
-        
+
         // Create enemy manager
         this.enemyManager = new EnemyManager(this);
-        
+
+        // Create powerup manager
+        this.powerupManager = new PowerupManager(this);
+
         // Create Grub Terminator companion
         this.grubTerminator = new GrubTerminator(this);
         
@@ -989,8 +993,8 @@ export default class GameScene extends Phaser.Scene {
         }
         
         // Initial powerup
-        if (this.enemyManager && typeof this.enemyManager.spawnPowerupHex === 'function') {
-            this.enemyManager.spawnPowerupHex();
+        if (this.powerupManager && typeof this.powerupManager.spawnPowerupHex === 'function') {
+            this.powerupManager.spawnPowerupHex();
         }
         
         // Initialize score
