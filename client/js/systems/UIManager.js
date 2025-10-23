@@ -983,14 +983,14 @@ export default class UIManager {
             gunPowerLevel = this.scene.player.gunPowerLevel;
         }
         
-        // Make sure gun power level is within bounds (1-3)
-        gunPowerLevel = Math.max(1, Math.min(3, gunPowerLevel));
-        
+        // Make sure gun power level is within bounds (0-4)
+        gunPowerLevel = Math.max(0, Math.min(4, gunPowerLevel));
+
         // Get the full radius of the background circle
         const fullRadius = this.gunPowerOrbBg.radius;
-        
-        // Update the orb size based on gun power percentage (1/3, 2/3, or 3/3)
-        this.gunPowerOrb.radius = fullRadius * (gunPowerLevel / 3);
+
+        // Update the orb size based on gun power percentage (1/4, 2/4, 3/4, or 4/4)
+        this.gunPowerOrb.radius = fullRadius * (gunPowerLevel / 4);
         
         // Make sure it's visible if it has any value at all
         if (gunPowerLevel <= 0) {
@@ -1016,10 +1016,10 @@ export default class UIManager {
         }
         
         // Add pulsing glow effect when gun power is at max level
-        if (gunPowerLevel >= 3 && !this.gunPowerOrbGlowing) {
+        if (gunPowerLevel >= 4 && !this.gunPowerOrbGlowing) {
             this.gunPowerOrbGlowing = true;
             this.addPulsingGlowEffect(this.gunPowerOrb, 0xff6600);
-        } else if (gunPowerLevel < 3 && this.gunPowerOrbGlowing) {
+        } else if (gunPowerLevel < 4 && this.gunPowerOrbGlowing) {
             this.gunPowerOrbGlowing = false;
             if (this.gunPowerOrbGlowTween) {
                 this.gunPowerOrbGlowTween.remove();

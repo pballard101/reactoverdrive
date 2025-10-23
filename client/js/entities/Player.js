@@ -97,7 +97,7 @@ export default class Player {
         // Calculate fire rate based on gun power level
         const baseDelay = 250;
         let fireDelay;
-        
+
         switch(this.gunPowerLevel) {
             case 1:
                 // Level 1: 25% faster
@@ -110,6 +110,10 @@ export default class Player {
             case 3:
                 // Level 3: 50% faster
                 fireDelay = Math.round(baseDelay / 1.5);
+                break;
+            case 4:
+                // Level 4: 65% faster - SUPER FAST!
+                fireDelay = Math.round(baseDelay / 1.65);
                 break;
             default:
                 fireDelay = baseDelay;
@@ -296,9 +300,9 @@ export default class Player {
             
             // Fire main bullet - now firing from right side of ship
             this.fireSingleBullet(this.sprite.x + 20, this.sprite.y);
-            
-            // If at max gun power level, fire a second bullet with a slight delay
-            if (this.gunPowerLevel === 3) {
+
+            // If at gun power level 3 or 4, fire a second bullet with a slight delay
+            if (this.gunPowerLevel >= 3) {
                 this.scene.time.delayedCall(75, () => {
                     this.fireSingleBullet(this.sprite.x + 20, this.sprite.y);
                     // Play bullet fire sound for second bullet too
@@ -968,10 +972,13 @@ export default class Player {
         
         // Reduce player health
         this.health = Math.max(0, this.health - amount);
-        
+
+        // Decrease gun power level when taking damage
+        this.decreaseGunPower();
+
         // Update health bar
         this.scene.uiManager.updateHealthBar();
-        
+
         // Check if player is dead
         if (this.health <= 0) {
             this.scene.gameOver();
@@ -1075,19 +1082,33 @@ export default class Player {
     }
     
     increaseGunPower() {
-        if (this.gunPowerLevel < 3) {
+        if (this.gunPowerLevel < 4) {
             this.gunPowerLevel++;
-            
+
             // Update gun power indicators in UI
             this.scene.uiManager.updateGunPowerIndicators();
-            
+
             // Update auto-fire rate
             this.setupAutoFire();
-            
+
             return true;
         }
-        
+
         return false; // Already at max power
+    }
+
+    decreaseGunPower() {
+        if (this.gunPowerLevel > 0) {
+            this.gunPowerLevel--;
+
+            // Update gun power indicators in UI
+            this.scene.uiManager.updateGunPowerIndicators();
+
+            // Update auto-fire rate
+            this.setupAutoFire();
+
+            console.log(`Gun power decreased to level ${this.gunPowerLevel}`);
+        }
     }
     
     // Emergency cleanup method to ensure energy weapon effects are properly reset

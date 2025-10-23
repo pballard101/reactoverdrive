@@ -96,7 +96,7 @@ export default class EnemyManager {
             enemyType = 'hexagon';
         } else if (enemyValue < 0.40) {
             // High intensity -> triangle
-            color = 0xff0000; // Red for strong beats
+            color = 0xffaa00; // Very bright yellow-orange (NOT red!)
             enemyType = 'triangle';
             strength = Math.max(strength, 0.71); // Ensure proper strength value
         } else if (enemyValue < 0.65) {
@@ -191,12 +191,26 @@ export default class EnemyManager {
         ctx.fillStyle = Phaser.Display.Color.HexStringToColor('#' + color.toString(16).padStart(6, '0')).rgba;
         
         if (enemyType === 'hexagon') {
-            // Hexagon - full size
+            // Energy Orb - glowing effect with bright core
             const hexRadius = size/2;
+
+            // Create radial gradient for glowing effect
+            const gradient = ctx.createRadialGradient(
+                size/2, size/2, 0,           // Inner circle (center)
+                size/2, size/2, hexRadius    // Outer circle (edge)
+            );
+
+            // Bright white/cyan core
+            gradient.addColorStop(0, 'rgba(200, 255, 255, 1.0)');     // Bright cyan-white core
+            gradient.addColorStop(0.3, 'rgba(153, 0, 255, 0.9)');     // Purple mid-section
+            gradient.addColorStop(0.7, 'rgba(153, 0, 255, 0.6)');     // Fading purple
+            gradient.addColorStop(1, 'rgba(153, 0, 255, 0.2)');       // Very transparent edge
+
+            // Draw hexagon shape with gradient
+            ctx.fillStyle = gradient;
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const angle = (Math.PI / 3) * i;
-                // Use full hexRadius to make the hexagon proper size
                 const x = size/2 + hexRadius * Math.cos(angle);
                 const y = size/2 + hexRadius * Math.sin(angle);
                 if (i === 0) {
@@ -207,22 +221,45 @@ export default class EnemyManager {
             }
             ctx.closePath();
             ctx.fill();
+
+            // Add bright white outline for extra glow
+            ctx.strokeStyle = 'rgba(200, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         } else if (strength > 0.7) {
-            // Triangle
+            // Triangle - solid bright yellow-orange, no gradient
+            ctx.fillStyle = 'rgba(255, 170, 0, 1.0)'; // Very bright yellow-orange
             ctx.beginPath();
-            ctx.moveTo(0, size);
-            ctx.lineTo(size/2, 0);
+            ctx.moveTo(size/2, 0);
+            ctx.lineTo(0, size);
             ctx.lineTo(size, size);
             ctx.closePath();
             ctx.fill();
+
+            // Add bright outline for pop
+            ctx.strokeStyle = 'rgba(255, 220, 100, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         } else if (strength > 0.4) {
-            // Square
+            // Square - solid bright yellow, no gradient
+            ctx.fillStyle = 'rgba(255, 255, 0, 1.0)'; // Bright yellow
             ctx.fillRect(0, 0, size, size);
+
+            // Add white outline for pop
+            ctx.strokeStyle = 'rgba(255, 255, 150, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, size, size);
         } else {
-            // Circle
+            // Circle - solid bright cyan, no gradient
+            ctx.fillStyle = 'rgba(0, 255, 255, 1.0)'; // Bright cyan
             ctx.beginPath();
             ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
             ctx.fill();
+
+            // Add white outline for pop
+            ctx.strokeStyle = 'rgba(150, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
         
         // Create unique texture name using timestamp and random to prevent collisions
@@ -290,12 +327,18 @@ export default class EnemyManager {
             enemy.isReversing = false;
             // Flag to prevent multiple collision handling
             enemy.isCollisionHandled = false;
+
+            // Create particle trail that follows the hexagon
+            this.createHexagonTrail(enemy);
         } else {
             // Regular enemies - set velocity based on strength
             const speed = 150 + (strength * 200);
             enemy.setVelocityX(-speed); // Move left
+
+            // Add pulsing red danger aura for regular enemies
+            this.createDangerAura(enemy, size);
         }
-        
+
         // Add enhanced FX to enemies based on size (no wireframes)
         if (this.scene.particleSystem) {
             if (size > 55) {
@@ -340,9 +383,13 @@ export default class EnemyManager {
             }
         });
         
-        // Add some rotation
+        // Add some rotation - triangles rotate MUCH faster for aggressive look
         enemy.rotation = Math.random() * Math.PI;
-        enemy.rotationSpeed = Phaser.Math.Between(-2, 2) * 0.01;
+        if (enemyType === 'triangle') {
+            enemy.rotationSpeed = Phaser.Math.Between(-10, 10) * 0.02; // Very fast, visible rotation!
+        } else {
+            enemy.rotationSpeed = Phaser.Math.Between(-2, 2) * 0.01; // Normal rotation
+        }
         
         // Add color pulsing to the enemy
         this.scene.tweens.add({
@@ -390,6 +437,21 @@ export default class EnemyManager {
                     
                     // Destroy if it goes off screen (left side)
                     if (enemy.x < -50) {
+                        // Clean up particle trail if this is a hexagon
+                        if (enemy.enemyType === 'hexagon' && enemy.trailParticleManager) {
+                            enemy.trailParticleManager.destroy();
+                        }
+                        // Clean up danger aura if this is a regular enemy
+                        if (enemy.dangerAura) {
+                            enemy.dangerAura.destroy();
+                        }
+                        if (enemy.auraUpdateTimer) {
+                            enemy.auraUpdateTimer.remove();
+                        }
+                        // Clean up particle effects
+                        if (enemy.particleManager) {
+                            enemy.particleManager.destroy();
+                        }
                         enemy.destroy();
                         colorPulse.destroy();
                     }
@@ -653,7 +715,25 @@ export default class EnemyManager {
             
             // Add a very subtle screen shake (reduced intensity)
             this.scene.cameras.main.shake(100, 0.002);
-            
+
+            // Clean up particle trail if this is a hexagon
+            if (enemy.enemyType === 'hexagon' && enemy.trailParticleManager) {
+                enemy.trailParticleManager.destroy();
+            }
+
+            // Clean up danger aura if this is a regular enemy
+            if (enemy.dangerAura) {
+                enemy.dangerAura.destroy();
+            }
+            if (enemy.auraUpdateTimer) {
+                enemy.auraUpdateTimer.remove();
+            }
+
+            // Clean up particle effects
+            if (enemy.particleManager) {
+                enemy.particleManager.destroy();
+            }
+
             // Destroy the enemy
             enemy.destroy();
             
@@ -1033,5 +1113,296 @@ export default class EnemyManager {
                 child.setScale(lerpedScale);
             }
         });
+    }
+
+    /**
+     * Creates enemy-specific particle effects
+     * @param {Phaser.GameObjects.Sprite} enemy - The enemy sprite to add particles to
+     * @param {string} enemyType - The type of enemy (circle, square, triangle)
+     */
+    createEnemyParticles(enemy, enemyType) {
+        try {
+            let particleColor, particleSize, particleConfig;
+
+            // Create particle texture based on enemy type
+            const particleTextureName = `enemy-particle-${enemyType}-${this.scene.time.now}`;
+
+            if (!this.scene.textures.exists(particleTextureName)) {
+                const pSize = 8;
+                const canvas = document.createElement('canvas');
+                canvas.width = pSize;
+                canvas.height = pSize;
+                const ctx = canvas.getContext('2d');
+
+                // Different particles for different enemy types
+                if (enemyType === 'circle') {
+                    // Blue sparks for circle
+                    const gradient = ctx.createRadialGradient(pSize/2, pSize/2, 0, pSize/2, pSize/2, pSize/2);
+                    gradient.addColorStop(0, 'rgba(100, 255, 255, 1.0)');
+                    gradient.addColorStop(1, 'rgba(0, 100, 255, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(pSize/2, pSize/2, pSize/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (enemyType === 'square') {
+                    // Orange embers for square
+                    const gradient = ctx.createRadialGradient(pSize/2, pSize/2, 0, pSize/2, pSize/2, pSize/2);
+                    gradient.addColorStop(0, 'rgba(255, 200, 100, 1.0)');
+                    gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(pSize/2, pSize/2, pSize/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (enemyType === 'triangle') {
+                    // Red energy dots for triangle
+                    const gradient = ctx.createRadialGradient(pSize/2, pSize/2, 0, pSize/2, pSize/2, pSize/2);
+                    gradient.addColorStop(0, 'rgba(255, 100, 100, 1.0)');
+                    gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(pSize/2, pSize/2, pSize/2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                this.scene.textures.addCanvas(particleTextureName, canvas);
+            }
+
+            // Create particle emitter
+            const particleManager = this.scene.add.particles(particleTextureName);
+
+            // Different particle behaviors for different enemy types
+            if (enemyType === 'circle') {
+                // Blue sparks - crackling around the edges
+                particleConfig = {
+                    follow: enemy,
+                    lifespan: 400,
+                    speed: { min: 20, max: 50 },
+                    scale: { start: 0.8, end: 0 },
+                    alpha: { start: 0.8, end: 0 },
+                    blendMode: 'ADD',
+                    frequency: 100,
+                    quantity: 1
+                };
+            } else if (enemyType === 'square') {
+                // Orange embers - trailing behind
+                particleConfig = {
+                    follow: enemy,
+                    x: 15, // Offset to the right (trailing)
+                    lifespan: 500,
+                    speed: { min: 10, max: 30 },
+                    scale: { start: 1.0, end: 0.2 },
+                    alpha: { start: 0.9, end: 0 },
+                    blendMode: 'ADD',
+                    frequency: 80,
+                    quantity: 1,
+                    gravityY: -20 // Float upward slightly
+                };
+            } else if (enemyType === 'triangle') {
+                // Red energy - pulsing outward
+                particleConfig = {
+                    follow: enemy,
+                    lifespan: 300,
+                    speed: { min: 30, max: 60 },
+                    scale: { start: 0.6, end: 0 },
+                    alpha: { start: 1.0, end: 0 },
+                    blendMode: 'ADD',
+                    frequency: 60,
+                    quantity: 2
+                };
+            }
+
+            const emitter = particleManager.createEmitter(particleConfig);
+            particleManager.setDepth(enemy.depth - 2);
+
+            // Store references for cleanup
+            enemy.particleEmitter = emitter;
+            enemy.particleManager = particleManager;
+
+        } catch (error) {
+            console.error('Error creating enemy particles:', error);
+        }
+    }
+
+    /**
+     * Creates a pulsing red danger aura around regular enemies
+     * @param {Phaser.GameObjects.Sprite} enemy - The enemy sprite to add the aura to
+     * @param {number} size - The size of the enemy
+     */
+    createDangerAura(enemy, size) {
+        try {
+            console.log(`🔴 Creating danger aura for ${enemy.enemyType}, size: ${size}`);
+
+            // Create a graphics object for the red aura
+            const aura = this.scene.add.graphics();
+            aura.setDepth(enemy.depth - 1); // Behind the enemy
+
+            // Store reference for cleanup
+            enemy.dangerAura = aura;
+
+            // Create pulsing animation for the aura - BIGGER and MORE VISIBLE
+            const auraScale = { value: 1.6 };
+            const auraAlpha = { value: 0.5 };
+
+            this.scene.tweens.add({
+                targets: auraScale,
+                value: 1.9,
+                duration: 400,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
+            this.scene.tweens.add({
+                targets: auraAlpha,
+                value: 0.3,
+                duration: 400,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
+            console.log(`🔴 Aura animations created with scale: ${auraScale.value}, alpha: ${auraAlpha.value}`);
+
+            // Update the aura every frame to follow the enemy
+            let frameCount = 0;
+            const updateAura = this.scene.time.addEvent({
+                delay: 30,
+                callback: () => {
+                    if (!enemy.active || !aura) {
+                        console.log(`🔴 Stopping aura update - enemy active: ${enemy.active}, aura exists: ${!!aura}`);
+                        if (aura) aura.destroy();
+                        updateAura.remove();
+                        return;
+                    }
+
+                    // Clear and redraw the aura as a filled glow
+                    aura.clear();
+                    aura.fillStyle(0xff0000, auraAlpha.value);
+
+                    const auraSize = (size / 2) * auraScale.value;
+
+                    // Log first few frames for debugging
+                    if (frameCount < 3) {
+                        console.log(`🔴 Drawing aura frame ${frameCount}: type=${enemy.enemyType}, pos=(${enemy.x}, ${enemy.y}), size=${auraSize}, alpha=${auraAlpha.value}`);
+                        frameCount++;
+                    }
+
+                    // Draw filled shape with rotation matching enemy
+                    if (enemy.enemyType === 'triangle') {
+                        // Calculate triangle points with rotation
+                        const cos = Math.cos(enemy.rotation);
+                        const sin = Math.sin(enemy.rotation);
+
+                        // Three points of triangle (top, bottom-left, bottom-right)
+                        const p1x = enemy.x + (0 * cos - (-auraSize) * sin);
+                        const p1y = enemy.y + (0 * sin + (-auraSize) * cos);
+                        const p2x = enemy.x + ((-auraSize) * cos - auraSize * sin);
+                        const p2y = enemy.y + ((-auraSize) * sin + auraSize * cos);
+                        const p3x = enemy.x + (auraSize * cos - auraSize * sin);
+                        const p3y = enemy.y + (auraSize * sin + auraSize * cos);
+
+                        aura.fillTriangle(p1x, p1y, p2x, p2y, p3x, p3y);
+                    } else if (enemy.enemyType === 'square') {
+                        // Draw rotated square using polygon
+                        const cos = Math.cos(enemy.rotation);
+                        const sin = Math.sin(enemy.rotation);
+
+                        // Four corners of square
+                        const corners = [
+                            { x: -auraSize, y: -auraSize },
+                            { x: auraSize, y: -auraSize },
+                            { x: auraSize, y: auraSize },
+                            { x: -auraSize, y: auraSize }
+                        ];
+
+                        const rotatedCorners = corners.map(corner => ({
+                            x: enemy.x + (corner.x * cos - corner.y * sin),
+                            y: enemy.y + (corner.x * sin + corner.y * cos)
+                        }));
+
+                        aura.fillPoints(rotatedCorners, true);
+                    } else {
+                        // Circle doesn't need rotation
+                        aura.fillCircle(enemy.x, enemy.y, auraSize);
+                    }
+                },
+                loop: true
+            });
+
+            // Store the timer for cleanup
+            enemy.auraUpdateTimer = updateAura;
+        } catch (error) {
+            console.error('Error creating danger aura:', error);
+        }
+    }
+
+    /**
+     * Creates a particle trail that follows the hexagon as it bounces
+     * @param {Phaser.GameObjects.Sprite} hexagon - The hexagon sprite to attach the trail to
+     */
+    createHexagonTrail(hexagon) {
+        try {
+            // Create particle texture sized relative to the hexagon (about 75% of hexagon size)
+            const hexagonSize = hexagon.width || 30;
+            const particleSize = Math.max(20, Math.round(hexagonSize * 0.75));
+            const particleTextureName = `hexagon-trail-particle-${this.scene.time.now}`;
+
+            // Check if texture already exists
+            if (!this.scene.textures.exists(particleTextureName)) {
+                const particleCanvas = document.createElement('canvas');
+                particleCanvas.width = particleSize;
+                particleCanvas.height = particleSize;
+                const particleCtx = particleCanvas.getContext('2d');
+
+                // Create a glowing particle with radial gradient
+                const gradient = particleCtx.createRadialGradient(
+                    particleSize/2, particleSize/2, 0,
+                    particleSize/2, particleSize/2, particleSize/2
+                );
+
+                gradient.addColorStop(0, 'rgba(200, 255, 255, 1.0)');     // Bright cyan-white center
+                gradient.addColorStop(0.5, 'rgba(153, 0, 255, 0.8)');     // Purple
+                gradient.addColorStop(1, 'rgba(153, 0, 255, 0)');         // Transparent edge
+
+                particleCtx.fillStyle = gradient;
+                particleCtx.beginPath();
+                particleCtx.arc(particleSize/2, particleSize/2, particleSize/2, 0, Math.PI * 2);
+                particleCtx.fill();
+
+                this.scene.textures.addCanvas(particleTextureName, particleCanvas);
+            }
+
+            // Create particle emitter manager
+            const particleManager = this.scene.add.particles(particleTextureName);
+
+            // Create the emitter that follows the hexagon
+            const trailEmitter = particleManager.createEmitter({
+                follow: hexagon,
+                lifespan: 800,      // Particles fade out after 800ms (longer trail)
+                speed: 0,           // No initial speed - just appear where hexagon was
+                scale: {
+                    start: 1.2,     // Start slightly larger
+                    end: 0.3        // Fade to smaller
+                },
+                alpha: {
+                    start: 0.9,     // Start more opaque
+                    end: 0
+                },
+                blendMode: 'ADD',   // Additive blending for glow effect
+                frequency: 30,      // Emit more frequently for denser trail
+                gravityY: 0         // No gravity
+            });
+
+            // Set depth behind the hexagon but in front of background
+            particleManager.setDepth(hexagon.depth - 1);
+
+            // Store references for cleanup
+            hexagon.trailEmitter = trailEmitter;
+            hexagon.trailParticleManager = particleManager;
+
+            console.log('✨ Created particle trail for hexagon');
+        } catch (error) {
+            console.error('Error creating hexagon trail:', error);
+        }
     }
 }
