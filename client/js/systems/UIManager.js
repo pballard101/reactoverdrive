@@ -24,17 +24,85 @@ export default class UIManager {
         
         // Create a container for all UI elements
         this.uiContainer = this.scene.add.container(0, 0);
-        
-        // Create score text in top left with retro font
-        this.scoreText = this.scene.add.text(50, 20, 'Score: 0', { 
-            fontSize: '24px', 
-            fontFamily: 'Courier, monospace', // Retro-style courier font
+
+        // Create TRIPPY retro arcade score text in top LEFT (40% smaller total)
+        this.scoreText = this.scene.add.text(50, 20, 'SCORE: 0', {
+            fontSize: '30px', // Reduced from 38px (another 20% smaller)
+            fontFamily: 'Impact, "Arial Black", sans-serif', // Bold retro arcade font
             fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
-            strokeThickness: 3
-        }).setOrigin(0, 0);
-        
+            strokeThickness: 4
+        }).setOrigin(0, 0).setAlpha(0.4); // Reduced opacity to let rainbow show through
+
+        // Store effect parameters for animation
+        this.scoreEffects = {
+            waveTime: 0,
+            waveAmplitude: 0.5, // Base wave strength
+            beatAmplitude: 0,   // Extra amplitude from beats
+            chromaticOffset: 2, // Base RGB split
+            chromaticBeatOffset: 0, // Extra split from beats
+            rainbowHue: 0, // Hue value for rainbow cycling (0-360)
+            baseAlpha: 0.4, // Base opacity for white text
+            pulseAlpha: 0 // Extra alpha from beats/pulses
+        };
+
+        // Store orb effect parameters for chromatic separation
+        this.orbEffects = {
+            chromaticOffset: 3, // Base RGB split for orbs (slightly larger than text)
+            chromaticBeatOffset: 0, // Extra split from beats
+            breatheTime: 0, // For breathing animation
+            pulseTime: 0, // For opacity pulsing
+            baseAlpha: 0.55, // Middle of 20%-90% range
+            pulseAmplitude: 0.35 // ±35% gives us 20%-90% range
+        };
+
+        // Add TRIPPY FX effects (WebGL only)
+        if (this.scene.renderer.type === Phaser.WEBGL) {
+            try {
+                // Method 1: Create shadow text layers for RGB chromatic effect
+                // Red channel (offset right and down)
+                this.scoreTextRed = this.scene.add.text(50, 20, 'SCORE: 0', {
+                    fontSize: '30px', // Match main text size
+                    fontFamily: 'Impact, "Arial Black", sans-serif',
+                    fontStyle: 'bold',
+                    color: '#ff0000',
+                    stroke: '#000000',
+                    strokeThickness: 2
+                }).setOrigin(0, 0).setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD);
+
+                // Blue channel (offset left and up)
+                this.scoreTextBlue = this.scene.add.text(50, 20, 'SCORE: 0', {
+                    fontSize: '30px', // Match main text size
+                    fontFamily: 'Impact, "Arial Black", sans-serif',
+                    fontStyle: 'bold',
+                    color: '#00ffff', // Cyan instead of pure blue for more visibility
+                    stroke: '#000000',
+                    strokeThickness: 2
+                }).setOrigin(0, 0).setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD);
+
+                // Put main white text on top
+                this.scoreText.setDepth(2);
+                this.scoreTextRed.setDepth(0);
+                this.scoreTextBlue.setDepth(1);
+
+                // Add displacement for wavy effect to all layers
+                this.scoreDisplacement = this.scoreText.preFX.addDisplacement('__WHITE', 0.005, 0.005);
+                this.scoreDisplacementRed = this.scoreTextRed.preFX.addDisplacement('__WHITE', 0.005, 0.005);
+                this.scoreDisplacementBlue = this.scoreTextBlue.preFX.addDisplacement('__WHITE', 0.005, 0.005);
+
+                // Add ColorMatrix for rainbow cycling on main text
+                this.scoreColorMatrix = this.scoreText.preFX.addColorMatrix();
+
+                // Add glow for psychedelic effect (color will change with rainbow)
+                this.scoreGlow = this.scoreText.preFX.addGlow(0xffffff, 4, 0, false, 0.1, 10);
+
+                console.log('✨ Trippy RGB chromatic + RAINBOW score FX enabled!');
+            } catch (error) {
+                console.warn("Could not add score FX (WebGL effects may not be supported):", error);
+            }
+        }
+
         // Create orbs at the bottom left
         const orbRadius = 30; // Larger orbs
         const orbSpacing = 80; // Increased spacing between orbs
@@ -84,16 +152,56 @@ export default class UIManager {
             this.healthOrbBg, this.energyOrbBg, this.gunPowerOrbBg, this.grubTerminatorOrbBg
         ]);
         
-        // Create filled orbs (these will be updated with the fill percentage)
-        this.healthOrb = this.scene.add.circle(orbStartX, orbY, orbRadius * (initialHealth / 100), healthColor);
-        this.energyOrb = this.scene.add.circle(orbStartX + orbSpacing, orbY, orbRadius * (initialEnergy / 100), energyColor);
-        this.gunPowerOrb = this.scene.add.circle(orbStartX + (orbSpacing * 2), orbY, orbRadius * (initialGunPower / 3), gunPowerColor);
-        
+        // Create RGB CHROMATIC SHADOW LAYERS for each orb (like score text!)
+        // Health orb RGB shadows
+        this.healthOrbRed = this.scene.add.circle(orbStartX, orbY, orbRadius * (initialHealth / 100), 0xff0000)
+            .setAlpha(0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(0);
+        this.healthOrbCyan = this.scene.add.circle(orbStartX, orbY, orbRadius * (initialHealth / 100), 0x00ffff)
+            .setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(1);
+
+        // Energy orb RGB shadows
+        this.energyOrbRed = this.scene.add.circle(orbStartX + orbSpacing, orbY, orbRadius * (initialEnergy / 100), 0xff0000)
+            .setAlpha(0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(0);
+        this.energyOrbCyan = this.scene.add.circle(orbStartX + orbSpacing, orbY, orbRadius * (initialEnergy / 100), 0x00ffff)
+            .setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(1);
+
+        // Gun power orb RGB shadows
+        this.gunPowerOrbRed = this.scene.add.circle(orbStartX + (orbSpacing * 2), orbY, orbRadius * (initialGunPower / 4), 0xff0000)
+            .setAlpha(0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(0);
+        this.gunPowerOrbCyan = this.scene.add.circle(orbStartX + (orbSpacing * 2), orbY, orbRadius * (initialGunPower / 4), 0x00ffff)
+            .setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(1);
+
+        // Grub Terminator orb RGB shadows
+        this.grubTerminatorOrbRed = this.scene.add.circle(orbStartX + (orbSpacing * 3), orbY, orbRadius, 0xff0000)
+            .setAlpha(0.4).setBlendMode(Phaser.BlendModes.ADD).setDepth(0);
+        this.grubTerminatorOrbCyan = this.scene.add.circle(orbStartX + (orbSpacing * 3), orbY, orbRadius, 0x00ffff)
+            .setAlpha(0.8).setBlendMode(Phaser.BlendModes.ADD).setDepth(1);
+
+        // Create filled orbs (these will be updated with the fill percentage) - MAIN LAYER ON TOP
+        this.healthOrb = this.scene.add.circle(orbStartX, orbY, orbRadius * (initialHealth / 100), healthColor).setDepth(2);
+        this.energyOrb = this.scene.add.circle(orbStartX + orbSpacing, orbY, orbRadius * (initialEnergy / 100), energyColor).setDepth(2);
+        // Gun power: 0-4 levels, so divide by 4 for max size
+        this.gunPowerOrb = this.scene.add.circle(orbStartX + (orbSpacing * 2), orbY, orbRadius * (initialGunPower / 4), gunPowerColor).setDepth(2);
+
         // Grub Terminator orb starts full (companion is initially active)
-        this.grubTerminatorOrb = this.scene.add.circle(orbStartX + (orbSpacing * 3), orbY, orbRadius, grubTerminatorColor);
-        
+        this.grubTerminatorOrb = this.scene.add.circle(orbStartX + (orbSpacing * 3), orbY, orbRadius, grubTerminatorColor).setDepth(2);
+
+        // Store orb base positions for chromatic offset calculations
+        this.orbPositions = {
+            health: { x: orbStartX, y: orbY },
+            energy: { x: orbStartX + orbSpacing, y: orbY },
+            gunPower: { x: orbStartX + (orbSpacing * 2), y: orbY },
+            grubTerminator: { x: orbStartX + (orbSpacing * 3), y: orbY }
+        };
+
         // Add to container
-        this.uiContainer.add([this.healthOrb, this.energyOrb, this.gunPowerOrb, this.grubTerminatorOrb]);
+        this.uiContainer.add([
+            this.healthOrbRed, this.healthOrbCyan,
+            this.energyOrbRed, this.energyOrbCyan,
+            this.gunPowerOrbRed, this.gunPowerOrbCyan,
+            this.grubTerminatorOrbRed, this.grubTerminatorOrbCyan,
+            this.healthOrb, this.energyOrb, this.gunPowerOrb, this.grubTerminatorOrb
+        ]);
         
         // Add glow effects for WebGL mode
         if (this.scene.renderer.type === Phaser.WEBGL) {
@@ -865,9 +973,230 @@ export default class UIManager {
     }
     
     updateScore(newScore) {
-        this.scoreText.setText(`Score: ${newScore.toLocaleString()}`);
+        // Store old score to detect changes
+        const oldScore = this.currentScore || 0;
+        this.currentScore = newScore;
+
+        const scoreText = `SCORE: ${newScore.toLocaleString()}`;
+        this.scoreText.setText(scoreText);
+
+        // Update RGB shadow layers if they exist
+        if (this.scoreTextRed) {
+            this.scoreTextRed.setText(scoreText);
+        }
+        if (this.scoreTextBlue) {
+            this.scoreTextBlue.setText(scoreText);
+        }
+
+        // Trigger score increase effect if score went up
+        if (newScore > oldScore) {
+            this.onScoreIncrease(newScore - oldScore);
+        }
     }
-    
+
+    onBeatPulse(strength = 1.0) {
+        // Intensify wave effect on beat for SCORE TEXT
+        if (this.scoreEffects) {
+            this.scoreEffects.beatAmplitude = strength * 3.0; // Strong wave pulse
+            this.scoreEffects.chromaticBeatOffset = strength * 8; // Strong RGB split
+            this.scoreEffects.pulseAlpha = strength * 0.4; // Flash brighter on beat
+
+            // Decay the beat effects over time
+            this.scene.tweens.add({
+                targets: this.scoreEffects,
+                beatAmplitude: 0,
+                chromaticBeatOffset: 0,
+                pulseAlpha: 0,
+                duration: 200,
+                ease: 'Cubic.easeOut'
+            });
+
+            // Pulse the glow on beat
+            if (this.scoreGlow) {
+                this.scoreGlow.outerStrength = 6 * strength;
+                this.scene.tweens.add({
+                    targets: this.scoreGlow,
+                    outerStrength: 4,
+                    duration: 200,
+                    ease: 'Cubic.easeOut'
+                });
+            }
+        }
+
+        // Intensify chromatic separation on beat for ORBS
+        if (this.orbEffects) {
+            this.orbEffects.chromaticBeatOffset = strength * 6; // Orbs explode on beats!
+
+            // Decay the orb beat effects
+            this.scene.tweens.add({
+                targets: this.orbEffects,
+                chromaticBeatOffset: 0,
+                duration: 200,
+                ease: 'Cubic.easeOut'
+            });
+        }
+    }
+
+    onScoreIncrease(points) {
+        // Extra chromatic split and wave when scoring
+        if (this.scoreEffects) {
+            const intensity = Math.min(points / 100, 2.0); // Scale by points
+
+            this.scoreEffects.beatAmplitude += intensity * 2.0;
+            this.scoreEffects.chromaticBeatOffset += intensity * 6;
+
+            // Quick flash effect
+            if (this.scoreGlow) {
+                this.scoreGlow.outerStrength = 8;
+                this.scene.tweens.add({
+                    targets: this.scoreGlow,
+                    outerStrength: 4,
+                    duration: 300,
+                    ease: 'Cubic.easeOut'
+                });
+            }
+
+            // Scale pulse on all text layers
+            const textTargets = [this.scoreText];
+            if (this.scoreTextRed) textTargets.push(this.scoreTextRed);
+            if (this.scoreTextBlue) textTargets.push(this.scoreTextBlue);
+
+            textTargets.forEach(text => text.setScale(1.15));
+
+            this.scene.tweens.add({
+                targets: textTargets,
+                scaleX: 1.0,
+                scaleY: 1.0,
+                duration: 300,
+                ease: 'Back.easeOut'
+            });
+        }
+    }
+
+    update(time, delta) {
+        // Animate the trippy score effects
+        if (this.scoreEffects) {
+            // Increment wave time
+            this.scoreEffects.waveTime += delta * 0.001; // Convert to seconds
+
+            // Cycle rainbow hue (0-360 degrees, full cycle every 3 seconds)
+            this.scoreEffects.rainbowHue = (this.scoreEffects.rainbowHue + delta * 0.12) % 360;
+
+            // Convert HSV to RGB for rainbow effect
+            const rainbowColor = Phaser.Display.Color.HSVToRGB(this.scoreEffects.rainbowHue / 360, 1.0, 1.0);
+
+            // Apply rainbow color to main text via ColorMatrix
+            if (this.scoreColorMatrix) {
+                // Use hue rotation for smooth rainbow cycling
+                this.scoreColorMatrix.hue(this.scoreEffects.rainbowHue);
+            }
+
+            // Update glow color to match rainbow
+            if (this.scoreGlow) {
+                const glowColor = Phaser.Display.Color.GetColor(
+                    rainbowColor.r,
+                    rainbowColor.g,
+                    rainbowColor.b
+                );
+                this.scoreGlow.color = glowColor;
+            }
+
+            // Update main white text opacity (base + pulse + slow breathing)
+            const breathe = Math.sin(this.scoreEffects.waveTime * 1.5) * 0.1; // Slow breathing 0.1 amplitude
+            const totalAlpha = Math.min(1.0, this.scoreEffects.baseAlpha + this.scoreEffects.pulseAlpha + breathe);
+            if (this.scoreText) {
+                this.scoreText.setAlpha(totalAlpha);
+            }
+
+            // Calculate total wave amplitude (base + beat)
+            const totalAmplitude = this.scoreEffects.waveAmplitude + this.scoreEffects.beatAmplitude;
+
+            // Calculate chromatic aberration offset
+            const totalChromatic = this.scoreEffects.chromaticOffset + this.scoreEffects.chromaticBeatOffset;
+
+            // Update displacement for wavy effect on all text layers
+            if (this.scoreDisplacement) {
+                const waveX = Math.sin(this.scoreEffects.waveTime * 3) * totalAmplitude * 0.01;
+                const waveY = Math.cos(this.scoreEffects.waveTime * 2) * totalAmplitude * 0.01;
+
+                this.scoreDisplacement.x = waveX;
+                this.scoreDisplacement.y = waveY;
+
+                // Apply same wave to RGB layers
+                if (this.scoreDisplacementRed) {
+                    this.scoreDisplacementRed.x = waveX;
+                    this.scoreDisplacementRed.y = waveY;
+                }
+                if (this.scoreDisplacementBlue) {
+                    this.scoreDisplacementBlue.x = waveX;
+                    this.scoreDisplacementBlue.y = waveY;
+                }
+            }
+
+            // Update RGB chromatic offset positions for score text
+            if (this.scoreTextRed && this.scoreTextBlue) {
+                // Red channel offset right/down
+                this.scoreTextRed.setPosition(50 + totalChromatic, 20 + totalChromatic * 0.5);
+
+                // Blue channel offset left/up
+                this.scoreTextBlue.setPosition(50 - totalChromatic, 20 - totalChromatic * 0.5);
+            }
+        }
+
+        // Animate the trippy ORB chromatic effects
+        if (this.orbEffects && this.orbPositions) {
+            // Increment breathe time and pulse time
+            this.orbEffects.breatheTime += delta * 0.001;
+            this.orbEffects.pulseTime += delta * 0.001;
+
+            // Calculate total chromatic offset (base + beat + breathing)
+            const breathe = Math.sin(this.orbEffects.breatheTime * 2) * 1.5; // Breathing adds ±1.5px
+            const totalOrbChromatic = this.orbEffects.chromaticOffset + this.orbEffects.chromaticBeatOffset + breathe;
+
+            // Calculate pulsing opacity for each orb (different speeds for variety)
+            // Pulse range: 20% to 90%
+            const healthAlpha = this.orbEffects.baseAlpha + Math.sin(this.orbEffects.pulseTime * 1.8) * this.orbEffects.pulseAmplitude;
+            const energyAlpha = this.orbEffects.baseAlpha + Math.sin(this.orbEffects.pulseTime * 2.2) * this.orbEffects.pulseAmplitude;
+            const gunPowerAlpha = this.orbEffects.baseAlpha + Math.sin(this.orbEffects.pulseTime * 1.5) * this.orbEffects.pulseAmplitude;
+            const grubAlpha = this.orbEffects.baseAlpha + Math.sin(this.orbEffects.pulseTime * 2.5) * this.orbEffects.pulseAmplitude;
+
+            // Apply pulsing opacity to main orbs
+            if (this.healthOrb) this.healthOrb.setAlpha(healthAlpha);
+            if (this.energyOrb) this.energyOrb.setAlpha(energyAlpha);
+            if (this.gunPowerOrb) this.gunPowerOrb.setAlpha(gunPowerAlpha);
+            if (this.grubTerminatorOrb) this.grubTerminatorOrb.setAlpha(grubAlpha);
+
+            // Update RGB shadow positions for all orbs
+            if (this.healthOrbRed && this.healthOrbCyan) {
+                const baseX = this.orbPositions.health.x;
+                const baseY = this.orbPositions.health.y;
+                this.healthOrbRed.setPosition(baseX + totalOrbChromatic, baseY + totalOrbChromatic * 0.5);
+                this.healthOrbCyan.setPosition(baseX - totalOrbChromatic, baseY - totalOrbChromatic * 0.5);
+            }
+
+            if (this.energyOrbRed && this.energyOrbCyan) {
+                const baseX = this.orbPositions.energy.x;
+                const baseY = this.orbPositions.energy.y;
+                this.energyOrbRed.setPosition(baseX + totalOrbChromatic, baseY + totalOrbChromatic * 0.5);
+                this.energyOrbCyan.setPosition(baseX - totalOrbChromatic, baseY - totalOrbChromatic * 0.5);
+            }
+
+            if (this.gunPowerOrbRed && this.gunPowerOrbCyan) {
+                const baseX = this.orbPositions.gunPower.x;
+                const baseY = this.orbPositions.gunPower.y;
+                this.gunPowerOrbRed.setPosition(baseX + totalOrbChromatic, baseY + totalOrbChromatic * 0.5);
+                this.gunPowerOrbCyan.setPosition(baseX - totalOrbChromatic, baseY - totalOrbChromatic * 0.5);
+            }
+
+            if (this.grubTerminatorOrbRed && this.grubTerminatorOrbCyan) {
+                const baseX = this.orbPositions.grubTerminator.x;
+                const baseY = this.orbPositions.grubTerminator.y;
+                this.grubTerminatorOrbRed.setPosition(baseX + totalOrbChromatic, baseY + totalOrbChromatic * 0.5);
+                this.grubTerminatorOrbCyan.setPosition(baseX - totalOrbChromatic, baseY - totalOrbChromatic * 0.5);
+            }
+        }
+    }
+
     updateHealthBar() {
         // Safely get health value from player if it exists
         let health = 100;
@@ -880,15 +1209,24 @@ export default class UIManager {
         
         // Get the full radius of the background circle
         const fullRadius = this.healthOrbBg.radius;
-        
+
         // Update the orb size based on health percentage
-        this.healthOrb.radius = fullRadius * (health / 100);
-        
+        const newRadius = fullRadius * (health / 100);
+        this.healthOrb.radius = newRadius;
+
+        // Update RGB shadow sizes to match
+        if (this.healthOrbRed) this.healthOrbRed.radius = newRadius;
+        if (this.healthOrbCyan) this.healthOrbCyan.radius = newRadius;
+
         // Make sure it's visible if it has any value at all
         if (health <= 0) {
             this.healthOrb.visible = false;
+            if (this.healthOrbRed) this.healthOrbRed.visible = false;
+            if (this.healthOrbCyan) this.healthOrbCyan.visible = false;
         } else {
             this.healthOrb.visible = true;
+            if (this.healthOrbRed) this.healthOrbRed.visible = true;
+            if (this.healthOrbCyan) this.healthOrbCyan.visible = true;
         }
         
         // Add a ripple effect when health changes significantly
@@ -934,15 +1272,24 @@ export default class UIManager {
         
         // Get the full radius of the background circle
         const fullRadius = this.energyOrbBg.radius;
-        
+
         // Update the orb size based on energy percentage
-        this.energyOrb.radius = fullRadius * (energy / 100);
-        
+        const newRadius = fullRadius * (energy / 100);
+        this.energyOrb.radius = newRadius;
+
+        // Update RGB shadow sizes to match
+        if (this.energyOrbRed) this.energyOrbRed.radius = newRadius;
+        if (this.energyOrbCyan) this.energyOrbCyan.radius = newRadius;
+
         // Make sure it's visible if it has any value at all
         if (energy <= 0) {
             this.energyOrb.visible = false;
+            if (this.energyOrbRed) this.energyOrbRed.visible = false;
+            if (this.energyOrbCyan) this.energyOrbCyan.visible = false;
         } else {
             this.energyOrb.visible = true;
+            if (this.energyOrbRed) this.energyOrbRed.visible = true;
+            if (this.energyOrbCyan) this.energyOrbCyan.visible = true;
         }
         
         // Add a ripple effect when energy changes significantly
@@ -990,13 +1337,22 @@ export default class UIManager {
         const fullRadius = this.gunPowerOrbBg.radius;
 
         // Update the orb size based on gun power percentage (1/4, 2/4, 3/4, or 4/4)
-        this.gunPowerOrb.radius = fullRadius * (gunPowerLevel / 4);
-        
+        const newRadius = fullRadius * (gunPowerLevel / 4);
+        this.gunPowerOrb.radius = newRadius;
+
+        // Update RGB shadow sizes to match
+        if (this.gunPowerOrbRed) this.gunPowerOrbRed.radius = newRadius;
+        if (this.gunPowerOrbCyan) this.gunPowerOrbCyan.radius = newRadius;
+
         // Make sure it's visible if it has any value at all
         if (gunPowerLevel <= 0) {
             this.gunPowerOrb.visible = false;
+            if (this.gunPowerOrbRed) this.gunPowerOrbRed.visible = false;
+            if (this.gunPowerOrbCyan) this.gunPowerOrbCyan.visible = false;
         } else {
             this.gunPowerOrb.visible = true;
+            if (this.gunPowerOrbRed) this.gunPowerOrbRed.visible = true;
+            if (this.gunPowerOrbCyan) this.gunPowerOrbCyan.visible = true;
         }
         
         // Add a dramatic flash effect and ripple when gun power level changes
@@ -1199,13 +1555,13 @@ export default class UIManager {
                 
             case 'orange': // Gun power increases by 1 level
                 // Get current gun power level
-                let gunPowerLevel = 1;
+                let gunPowerLevel = 0;
                 if (this.scene.player && typeof this.scene.player.gunPowerLevel === 'number') {
                     gunPowerLevel = this.scene.player.gunPowerLevel;
                 }
-                // Ensure we don't go over level 3
-                const targetGunPower = Math.min(3, gunPowerLevel + 1);
-                targetRadius = this.gunPowerOrbBg.radius * (targetGunPower / 3);
+                // Ensure we don't go over level 4
+                const targetGunPower = Math.min(4, gunPowerLevel + 1);
+                targetRadius = this.gunPowerOrbBg.radius * (targetGunPower / 4);
                 break;
         }
         
@@ -1470,6 +1826,18 @@ export default class UIManager {
     
     cleanupEnergyIndicator() {
         if (this.energyIndicator && this.energyIndicator.active) {
+            // Stop all tweens targeting this sprite
+            this.scene.tweens.killTweensOf(this.energyIndicator);
+
+            // Clear any FX effects BEFORE destroying to prevent orphaned glow circles
+            if (this.energyIndicator.preFX) {
+                try {
+                    this.energyIndicator.preFX.clear();
+                } catch (error) {
+                    console.warn("Error clearing energy indicator FX:", error);
+                }
+            }
+
             // Add fade out effect
             this.scene.tweens.add({
                 targets: this.energyIndicator,
@@ -1477,9 +1845,18 @@ export default class UIManager {
                 scale: 0,
                 duration: 500,
                 onComplete: () => {
+                    // Double-check FX clearing before destroy
+                    if (this.energyIndicator && this.energyIndicator.preFX) {
+                        try {
+                            this.energyIndicator.preFX.clear();
+                        } catch (error) {
+                            // Silently handle - sprite might already be destroyed
+                        }
+                    }
+
                     this.energyIndicator.destroy();
                     this.energyIndicator = null;
-                    
+
                     // Also remove the follower event if it exists
                     if (this.energyIndicatorFollower) {
                         this.energyIndicatorFollower.remove();

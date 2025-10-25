@@ -823,7 +823,12 @@ export default class AudioAnalyzer {
         if (this.scene.uiManager && this.scene.uiManager.updateBeatInfo) {
             this.scene.uiManager.updateBeatInfo(this.currentBPM, beat.strength);
         }
-        
+
+        // Trigger trippy score effects on beat
+        if (this.scene.uiManager && typeof this.scene.uiManager.onBeatPulse === 'function') {
+            this.scene.uiManager.onBeatPulse(beat.strength);
+        }
+
         // Spawn a powerup hexagon (20% chance on any beat)
         const canSpawnPowerup = this.scene.enemyManager && 
                                 typeof this.scene.enemyManager.spawnPowerupHex === 'function' &&

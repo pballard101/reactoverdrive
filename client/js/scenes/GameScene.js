@@ -996,7 +996,12 @@ export default class GameScene extends Phaser.Scene {
         if (this.powerupManager && typeof this.powerupManager.spawnPowerupHex === 'function') {
             this.powerupManager.spawnPowerupHex();
         }
-        
+
+        // Start static powerup spawner
+        if (this.powerupManager && typeof this.powerupManager.startStaticPowerupSpawner === 'function') {
+            this.powerupManager.startStaticPowerupSpawner();
+        }
+
         // Initialize score
         this.score = 0;
         if (this.uiManager) {
@@ -1310,7 +1315,12 @@ export default class GameScene extends Phaser.Scene {
         if (this.uiManager && typeof this.uiManager.updateGrubTerminatorOrb === 'function') {
             this.uiManager.updateGrubTerminatorOrb();
         }
-        
+
+        // Update UI Manager for trippy score effects
+        if (this.uiManager && typeof this.uiManager.update === 'function') {
+            this.uiManager.update(this.time.now, this.game.loop.delta);
+        }
+
         // Update sound manager
         if (this.soundManager && typeof this.soundManager.update === 'function') {
             this.soundManager.update();
@@ -1821,22 +1831,49 @@ export default class GameScene extends Phaser.Scene {
      */
     shutdown() {
         console.log("🧹 GameScene shutdown - cleaning up resources");
-        
+
+        // Cleanup player
+        if (this.player) {
+            // Stop player auto-fire timer
+            if (this.player.autoFireTimer) {
+                this.player.autoFireTimer.remove();
+                this.player.autoFireTimer = null;
+            }
+
+            // Destroy player sprite
+            if (this.player.sprite) {
+                this.player.sprite.destroy();
+            }
+
+            // Cleanup player glow
+            if (this.player.glow) {
+                this.player.glow.destroy();
+                this.player.glow = null;
+            }
+
+            if (this.player.glowFollower) {
+                this.player.glowFollower.remove();
+                this.player.glowFollower = null;
+            }
+
+            this.player = null;
+        }
+
         // Cleanup pause menu
         if (this.pauseMenu) {
             this.pauseMenu.cleanup();
             this.pauseMenu = null;
         }
-        
+
         // Cleanup other systems
         if (this.soundManager && typeof this.soundManager.cleanup === 'function') {
             this.soundManager.cleanup();
         }
-        
+
         if (this.audioAnalyzer && typeof this.audioAnalyzer.cleanup === 'function') {
             this.audioAnalyzer.cleanup();
         }
-        
+
         // Clear any existing timers
         if (this.cleanupTimer) {
             this.cleanupTimer.remove();

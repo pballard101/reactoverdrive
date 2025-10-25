@@ -3,25 +3,158 @@
 export default class ParticleSystem {
     constructor(scene) {
         this.scene = scene;
-        
+
         // Particle system state
         this.particleEmitters = [];
         this.showCentralParticles = false; // Default to false - center circle off by default
         this.showSatelliteParticles = true;
         this.centralParticlesPersist = false; // New flag to persist central particles state
-        
+
         // Energy field visualization
         this.energyField = null;
         this.energyLevel = 0;
         this.targetEnergyLevel = 0;
         this.lastEnergyUpdate = 0;
-        
+
         // Track missing textures to avoid repeated failures
         this.missingTextures = new Set();
-        
+
         // Create necessary particle textures at initialization
         this.ensureRequiredTextures();
         this.createParticleTextures();
+
+        // Start periodic cleanup of orphaned circles
+        this.startOrphanedCircleCleanup();
+    }
+
+    /**
+     * Periodically clean up orphaned circles with additive blend mode
+     */
+    startOrphanedCircleCleanup() {
+        this.cleanupTimer = this.scene.time.addEvent({
+            delay: 500, // Run every 0.5 seconds (more aggressive)
+            callback: () => {
+                const orphanedCircles = [];
+                const allAdditiveCircles = [];
+                const allPurpleCircles = [];
+
+                // Sample a few circles to see their actual properties
+                let sampleCount = 0;
+                const circleSamples = [];
+
+                // Helper to check all circles, including those in containers
+                const checkCircle = (obj, inContainer = false) => {
+                    // Sample the first few circles to debug color detection
+                    if (obj.type === 'Arc' && sampleCount < 3 && obj.radius && obj.radius < 15) {
+                        sampleCount++;
+                        circleSamples.push({
+                            radius: obj.radius,
+                            fillColor: obj.fillColor,
+                            _fillColor: obj._fillColor,
+                            inContainer: inContainer,
+                            blendMode: obj.blendMode
+                        });
+                    }
+
+                    // Find ALL purple/magenta circles regardless of blend mode
+                    // Note: fillColor might be stored differently depending on object creation method
+                    const isMagenta = obj.fillColor === 0xff00ff ||
+                                     obj.fillColor === 16711935 || // decimal representation of 0xff00ff
+                                     (obj._fillColor && (obj._fillColor === 0xff00ff || obj._fillColor === 16711935));
+
+                    if (obj.type === 'Arc' && isMagenta) {
+                        allPurpleCircles.push({
+                            radius: obj.radius,
+                            fillColor: obj.fillColor,
+                            blendMode: obj.blendMode === Phaser.BlendModes.ADD ? 'ADDITIVE' : 'NORMAL',
+                            hasContainer: !!obj.parentContainer,
+                            inContainer: inContainer,
+                            visible: obj.visible,
+                            alpha: obj.alpha,
+                            x: obj.x,
+                            y: obj.y,
+                            age: obj.birthTime ? this.scene.time.now - obj.birthTime : 'unknown'
+                        });
+                    }
+                };
+
+                this.scene.children.list.forEach(obj => {
+                    // Check the object itself
+                    checkCircle(obj, false);
+
+                    // If it's a container, check its children
+                    if (obj.type === 'Container' && obj.list) {
+                        obj.list.forEach(child => checkCircle(child, true));
+                    }
+
+                    // Find ALL circles with additive blend for debugging
+                    if (obj.type === 'Arc' && obj.blendMode === Phaser.BlendModes.ADD) {
+                        allAdditiveCircles.push({
+                            radius: obj.radius,
+                            hasContainer: !!obj.parentContainer,
+                            age: obj.birthTime ? this.scene.time.now - obj.birthTime : 0
+                        });
+                    }
+
+                    // Find circles with additive blend that aren't in containers
+                    // Check explosion particles specifically, or any small additive circles
+                    if (obj.type === 'Arc' &&
+                        obj.blendMode === Phaser.BlendModes.ADD &&
+                        !obj.parentContainer &&
+                        (obj.isExplosionParticle || (obj.radius && obj.radius < 15))) {
+
+                        // Check if this circle has been alive too long (orphaned)
+                        if (!obj.birthTime) {
+                            obj.birthTime = this.scene.time.now;
+                        } else {
+                            const age = this.scene.time.now - obj.birthTime;
+                            if (age > 1000) { // Older than 1 second = orphaned (reduced from 2s)
+                                orphanedCircles.push(obj);
+                            }
+                        }
+                    }
+                });
+
+                // Log samples if we have any
+                if (circleSamples.length > 0) {
+                    console.log('🔬 Circle samples:', circleSamples);
+                }
+
+                // Log all purple circles for debugging
+                if (allPurpleCircles.length > 0) {
+                    console.log(`🟣 Found ${allPurpleCircles.length} PURPLE/MAGENTA circles:`, allPurpleCircles);
+                }
+
+                // Log all additive circles for debugging
+                if (allAdditiveCircles.length > 5) {
+                    console.log(`📊 Found ${allAdditiveCircles.length} additive circles total`);
+                }
+
+                // Clean up orphaned circles
+                if (orphanedCircles.length > 0) {
+                    // Categorize circles by type for better debugging
+                    const circlesByType = {};
+                    orphanedCircles.forEach(circle => {
+                        const type = circle.isExplosionParticle ? 'explosion' :
+                                   circle.isBeatParticle ? 'beat' :
+                                   circle.isSatellite ? 'satellite' : 'unknown';
+                        circlesByType[type] = (circlesByType[type] || 0) + 1;
+                    });
+
+                    console.log(`🧹 Cleaned up ${orphanedCircles.length} orphaned circles:`, circlesByType);
+                    orphanedCircles.forEach(circle => {
+                        try {
+                            circle.setBlendMode(Phaser.BlendModes.NORMAL);
+                            circle.setVisible(false);
+                            circle.destroy();
+                        } catch (e) {
+                            // Ignore errors
+                        }
+                    });
+                }
+            },
+            loop: true
+        });
     }
     
     // New method to ensure all required textures exist
@@ -395,10 +528,39 @@ export default class ParticleSystem {
         if (this.particleEmitters && this.particleEmitters.length > 0) {
             // Find and destroy all satellite emitters
             const satelliteEmitters = this.particleEmitters.filter(e => e.type === 'satellite' && e.active);
-            
+
             satelliteEmitters.forEach(emitterObj => {
                 if (emitterObj.emitter) {
                     try {
+                        // Mark satellite as being destroyed so callbacks won't create new particles
+                        emitterObj.emitter.isBeingDestroyed = true;
+
+                        // CRITICAL: Stop pulse tween BEFORE destroying satellite
+                        if (emitterObj.emitter.pulseTween) {
+                            emitterObj.emitter.pulseTween.stop();
+                            emitterObj.emitter.pulseTween = null;
+                        }
+
+                        // CRITICAL: Stop trail timer to prevent orphaned circles
+                        if (emitterObj.emitter.trailTimer) {
+                            emitterObj.emitter.trailTimer.remove();
+                            emitterObj.emitter.trailTimer = null;
+                        }
+
+                        // Clear blend modes on child circles before destroying container
+                        if (emitterObj.emitter.list && emitterObj.emitter.list.length > 0) {
+                            emitterObj.emitter.list.forEach(child => {
+                                if (child && child.active) {
+                                    try {
+                                        child.setBlendMode(Phaser.BlendModes.NORMAL);
+                                        child.setVisible(false);
+                                    } catch (e) {
+                                        // Ignore errors
+                                    }
+                                }
+                            });
+                        }
+
                         emitterObj.emitter.destroy();
                         emitterObj.active = false;
                     } catch (error) {
@@ -406,7 +568,7 @@ export default class ParticleSystem {
                     }
                 }
             });
-            
+
             // Remove destroyed emitters from array
             this.particleEmitters = this.particleEmitters.filter(e => e.active);
         }
@@ -414,13 +576,14 @@ export default class ParticleSystem {
     
     createSatelliteEmitter(x, y, segmentType) {
         // console.log("Creating satellite using NATIVE SHAPES WITHOUT TEXTURES");
-        
+
         try {
             // Get color based on segment type - more vibrant colors
             let color;
             switch(segmentType) {
                 case 'chorus':
                     color = 0xff00ff; // Magenta
+                    console.log('🛰️ Creating MAGENTA satellite for chorus segment');
                     break;
                 case 'verse':
                     color = 0x00ffff; // Cyan
@@ -464,7 +627,7 @@ export default class ParticleSystem {
             satellite.add(coreCircle);
             
             // Add pulsing animation to make it more interesting
-            this.scene.tweens.add({
+            const pulseTween = this.scene.tweens.add({
                 targets: [mainCircle, coreCircle],
                 scaleX: 1.2,
                 scaleY: 1.2,
@@ -472,6 +635,9 @@ export default class ParticleSystem {
                 yoyo: true,
                 repeat: -1
             });
+
+            // Store the tween reference on the satellite for cleanup
+            satellite.pulseTween = pulseTween;
             
             // Add to emitters array for tracking
             this.particleEmitters.push({
@@ -520,10 +686,47 @@ export default class ParticleSystem {
                             alpha: 0,
                             duration: 1500,
                             onComplete: () => {
+                                // Mark satellite as being destroyed
+                                if (satellite) satellite.isBeingDestroyed = true;
+
+                                // Stop pulse tween BEFORE destroying satellite
+                                if (satellite.pulseTween) {
+                                    satellite.pulseTween.stop();
+                                    satellite.pulseTween = null;
+                                }
+                                // Stop trail timer BEFORE destroying satellite
+                                if (satellite.trailTimer) {
+                                    satellite.trailTimer.remove();
+                                    satellite.trailTimer = null;
+                                }
                                 if (satellite && satellite.active) satellite.destroy();
                                 if (pathFollower && pathFollower.active) pathFollower.destroy();
                                 if (followTimer) followTimer.remove();
-                                
+
+                                // Remove from emitters array
+                                const index = this.particleEmitters.findIndex(e => e.emitter === satellite);
+                                if (index !== -1) {
+                                    this.particleEmitters[index].active = false;
+                                }
+                            },
+                            onStop: () => {
+                                // Mark satellite as being destroyed
+                                if (satellite) satellite.isBeingDestroyed = true;
+
+                                // Also handle if fade out tween is stopped
+                                if (satellite.pulseTween) {
+                                    satellite.pulseTween.stop();
+                                    satellite.pulseTween = null;
+                                }
+                                // Stop trail timer BEFORE destroying satellite
+                                if (satellite.trailTimer) {
+                                    satellite.trailTimer.remove();
+                                    satellite.trailTimer = null;
+                                }
+                                if (satellite && satellite.active) satellite.destroy();
+                                if (pathFollower && pathFollower.active) pathFollower.destroy();
+                                if (followTimer) followTimer.remove();
+
                                 // Remove from emitters array
                                 const index = this.particleEmitters.findIndex(e => e.emitter === satellite);
                                 if (index !== -1) {
@@ -539,23 +742,36 @@ export default class ParticleSystem {
                     const trailTimer = this.scene.time.addEvent({
                         delay: 200,
                         callback: () => {
-                            if (satellite && satellite.active) {
+                            if (satellite && satellite.active && !satellite.isBeingDestroyed) {
                                 const smallGlow = this.scene.add.circle(
-                                    satellite.x, 
-                                    satellite.y, 
-                                    3, 
-                                    color, 
+                                    satellite.x,
+                                    satellite.y,
+                                    3,
+                                    color,
                                     0.5
                                 );
                                 smallGlow.setBlendMode(Phaser.BlendModes.ADD);
-                                
+                                // Mark as satellite trail for debugging
+                                smallGlow.isSatelliteTrail = true;
+
                                 // Fade out the trail particle
                                 this.scene.tweens.add({
                                     targets: smallGlow,
                                     alpha: 0,
                                     scale: 0.5,
                                     duration: 800,
-                                    onComplete: () => smallGlow.destroy()
+                                    onComplete: () => {
+                                        if (smallGlow && smallGlow.active) {
+                                            smallGlow.destroy();
+                                        }
+                                    },
+                                    onStop: () => {
+                                        if (smallGlow && smallGlow.active) {
+                                            smallGlow.setBlendMode(Phaser.BlendModes.NORMAL);
+                                            smallGlow.setVisible(false);
+                                            smallGlow.destroy();
+                                        }
+                                    }
                                 });
                             } else {
                                 trailTimer.remove();
@@ -563,7 +779,10 @@ export default class ParticleSystem {
                         },
                         loop: true
                     });
-                    
+
+                    // Store trail timer on satellite for cleanup
+                    satellite.trailTimer = trailTimer;
+
                     // Make sure to clean up the trail timer
                     this.scene.time.delayedCall(6000, () => {
                         if (trailTimer) trailTimer.remove();
@@ -658,14 +877,17 @@ export default class ParticleSystem {
     
     createExplosion(x, y, size, color) {
         try {
-            // console.log(`Creating explosion at (${x}, ${y}) with size ${size} and color ${color}`);
-            
+            console.log(`💥 Creating explosion at (${x}, ${y}) with size ${size} and color ${color} (hex: 0x${color.toString(16)})`);
+
             // SIMPLIFIED APPROACH: Just use circles for the explosion effect
             // No particle emitters that might cause texture issues
             
             // Create a main expanding circle
             const mainCircle = this.scene.add.circle(x, y, size/2, color, 0.7);
             mainCircle.setDepth(10);
+            mainCircle.setBlendMode(Phaser.BlendModes.ADD); // Make it glow
+            mainCircle.birthTime = this.scene.time.now; // For cleanup tracking
+            mainCircle.isExplosionParticle = true; // Mark for identification
             
             // Animate the main circle
             this.scene.tweens.add({
@@ -674,13 +896,29 @@ export default class ParticleSystem {
                 alpha: 0,
                 duration: 500,
                 onComplete: () => {
-                    mainCircle.destroy();
+                    console.log('✅ Main explosion circle tween completed, active:', mainCircle?.active);
+                    if (mainCircle && mainCircle.active) {
+                        mainCircle.setVisible(false);
+                        mainCircle.destroy();
+                        console.log('✅ Main explosion circle destroyed');
+                    } else {
+                        console.log('⚠️ Main explosion circle not active, cannot destroy');
+                    }
+                },
+                onStop: () => {
+                    console.log('⚠️ Main explosion circle tween stopped prematurely');
+                    // Also destroy if tween is stopped prematurely
+                    if (mainCircle && mainCircle.active) {
+                        mainCircle.setVisible(false);
+                        mainCircle.destroy();
+                    }
                 }
             });
             
             // Create multiple small circles for a more detailed explosion effect
             const smallCircleCount = Math.min(20, Math.max(10, Math.floor(size / 2)));
-            
+            let smallCirclesCompleted = 0;
+
             for (let i = 0; i < smallCircleCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const distance = Math.random() * size;
@@ -690,7 +928,10 @@ export default class ParticleSystem {
                 // Create a small circle
                 const smallCircle = this.scene.add.circle(px, py, 2 + Math.random() * 4, color, 0.8);
                 smallCircle.setDepth(11);
-                
+                smallCircle.setBlendMode(Phaser.BlendModes.ADD); // Make it glow
+                smallCircle.birthTime = this.scene.time.now; // For cleanup tracking
+                smallCircle.isExplosionParticle = true; // Mark for identification
+
                 // Animate it outward
                 this.scene.tweens.add({
                     targets: smallCircle,
@@ -700,7 +941,21 @@ export default class ParticleSystem {
                     scale: 0.5,
                     duration: 300 + Math.random() * 300,
                     onComplete: () => {
-                        smallCircle.destroy();
+                        smallCirclesCompleted++;
+                        if (smallCirclesCompleted === smallCircleCount) {
+                            console.log(`✅ All ${smallCircleCount} small explosion circles completed`);
+                        }
+                        if (smallCircle && smallCircle.active) {
+                            smallCircle.setVisible(false);
+                            smallCircle.destroy();
+                        }
+                    },
+                    onStop: () => {
+                        // Also destroy if tween is stopped prematurely
+                        if (smallCircle && smallCircle.active) {
+                            smallCircle.setVisible(false);
+                            smallCircle.destroy();
+                        }
                     }
                 });
             }
@@ -753,6 +1008,17 @@ export default class ParticleSystem {
                     ease: 'Sine.easeOut',
                     onComplete: () => {
                         if (particle && particle.active) {
+                            // Clear blend mode before destroying to prevent artifacts
+                            particle.setBlendMode(Phaser.BlendModes.NORMAL);
+                            particle.setVisible(false);
+                            particle.destroy();
+                        }
+                    },
+                    onStop: () => {
+                        // Also destroy if tween is stopped prematurely
+                        if (particle && particle.active) {
+                            particle.setBlendMode(Phaser.BlendModes.NORMAL);
+                            particle.setVisible(false);
                             particle.destroy();
                         }
                     }
@@ -772,6 +1038,16 @@ export default class ParticleSystem {
                 ease: 'Quad.easeOut',
                 onComplete: () => {
                     if (flash && flash.active) {
+                        flash.setBlendMode(Phaser.BlendModes.NORMAL);
+                        flash.setVisible(false);
+                        flash.destroy();
+                    }
+                },
+                onStop: () => {
+                    // Also destroy if tween is stopped prematurely
+                    if (flash && flash.active) {
+                        flash.setBlendMode(Phaser.BlendModes.NORMAL);
+                        flash.setVisible(false);
                         flash.destroy();
                     }
                 }

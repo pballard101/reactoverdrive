@@ -1230,7 +1230,7 @@ export default class EnemyManager {
      */
     createDangerAura(enemy, size) {
         try {
-            console.log(`🔴 Creating danger aura for ${enemy.enemyType}, size: ${size}`);
+            // console.log(`🔴 Creating danger aura for ${enemy.enemyType}, size: ${size}`);
 
             // Create a graphics object for the red aura
             const aura = this.scene.add.graphics();
@@ -1261,7 +1261,7 @@ export default class EnemyManager {
                 ease: 'Sine.easeInOut'
             });
 
-            console.log(`🔴 Aura animations created with scale: ${auraScale.value}, alpha: ${auraAlpha.value}`);
+            // console.log(`🔴 Aura animations created with scale: ${auraScale.value}, alpha: ${auraAlpha.value}`);
 
             // Update the aura every frame to follow the enemy
             let frameCount = 0;
@@ -1269,7 +1269,7 @@ export default class EnemyManager {
                 delay: 30,
                 callback: () => {
                     if (!enemy.active || !aura) {
-                        console.log(`🔴 Stopping aura update - enemy active: ${enemy.active}, aura exists: ${!!aura}`);
+                        // console.log(`🔴 Stopping aura update - enemy active: ${enemy.active}, aura exists: ${!!aura}`);
                         if (aura) aura.destroy();
                         updateAura.remove();
                         return;
@@ -1282,10 +1282,10 @@ export default class EnemyManager {
                     const auraSize = (size / 2) * auraScale.value;
 
                     // Log first few frames for debugging
-                    if (frameCount < 3) {
-                        console.log(`🔴 Drawing aura frame ${frameCount}: type=${enemy.enemyType}, pos=(${enemy.x}, ${enemy.y}), size=${auraSize}, alpha=${auraAlpha.value}`);
-                        frameCount++;
-                    }
+                    // if (frameCount < 3) {
+                    //     console.log(`🔴 Drawing aura frame ${frameCount}: type=${enemy.enemyType}, pos=(${enemy.x}, ${enemy.y}), size=${auraSize}, alpha=${auraAlpha.value}`);
+                    //     frameCount++;
+                    // }
 
                     // Draw filled shape with rotation matching enemy
                     if (enemy.enemyType === 'triangle') {

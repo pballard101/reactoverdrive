@@ -37,7 +37,10 @@ export default class Player {
         
         // Add visual effects to player
         this.addVisualEffects();
-        
+
+        // Setup auto-fire system with current gun power level
+        this.setupAutoFire();
+
     }
     
     get x() {
@@ -100,30 +103,32 @@ export default class Player {
 
         switch(this.gunPowerLevel) {
             case 1:
-                // Level 1: 25% faster
-                fireDelay = Math.round(baseDelay / 1.25);
-                break;
-            case 2:
-                // Level 2: 40% faster
-                fireDelay = Math.round(baseDelay / 1.4);
-                break;
-            case 3:
-                // Level 3: 50% faster
+                // Level 1: 50% faster - NOTICEABLE!
                 fireDelay = Math.round(baseDelay / 1.5);
                 break;
+            case 2:
+                // Level 2: 75% faster - DRAMATIC!
+                fireDelay = Math.round(baseDelay / 1.75);
+                break;
+            case 3:
+                // Level 3: 75% faster + 3 streams
+                fireDelay = Math.round(baseDelay / 1.75);
+                break;
             case 4:
-                // Level 4: 65% faster - SUPER FAST!
-                fireDelay = Math.round(baseDelay / 1.65);
+                // Level 4: 90% faster + 5 streams - MAXIMUM FIREPOWER!
+                fireDelay = Math.round(baseDelay / 1.9);
                 break;
             default:
                 fireDelay = baseDelay;
         }
-        
+
+        console.log(`🔫 Gun Power Level ${this.gunPowerLevel}: Fire delay ${fireDelay}ms (base: ${baseDelay}ms)`);
+
         // Remove existing timer if it exists
         if (this.autoFireTimer) {
             this.autoFireTimer.remove();
         }
-        
+
         // Create new auto-fire timer
         this.autoFireTimer = this.scene.time.addEvent({
             delay: fireDelay,
@@ -132,13 +137,17 @@ export default class Player {
             },
             loop: true
         });
-        
+
     }
     
     update() {
-        // Make sure scene exists
-        if (!this.scene || !this.sprite) {
-            console.error("Scene or player sprite not available in update");
+        // Make sure scene exists and is active
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) {
+            return;
+        }
+
+        // Make sure sprite exists and is active
+        if (!this.sprite || !this.sprite.active) {
             return;
         }
         
@@ -171,9 +180,13 @@ export default class Player {
     
     // Movement handler with gamepad support
     handleMovement() {
-        // Ensure we have a physics body
-        if (!this.sprite.body || !this.sprite.body.enable) {
-            console.warn("Player physics body not available for movement");
+        // Check if scene is still active
+        if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) {
+            return;
+        }
+
+        // Ensure we have a sprite and physics body
+        if (!this.sprite || !this.sprite.active || !this.sprite.body || !this.sprite.body.enable) {
             return;
         }
         
@@ -298,50 +311,63 @@ export default class Player {
                 this.scene.soundManager.playBulletFire();
             }
             
-            // Fire main bullet - now firing from right side of ship
-            this.fireSingleBullet(this.sprite.x + 20, this.sprite.y);
-
-            // If at gun power level 3 or 4, fire a second bullet with a slight delay
-            if (this.gunPowerLevel >= 3) {
-                this.scene.time.delayedCall(75, () => {
-                    this.fireSingleBullet(this.sprite.x + 20, this.sprite.y);
-                    // Play bullet fire sound for second bullet too
-                    if (this.scene.soundManager) {
-                        this.scene.soundManager.playBulletFire();
-                    }
-                });
+            // Fire bullets based on gun power level
+            if (this.gunPowerLevel >= 4) {
+                // Level 4: 5 streams (forward 3 + backward 2)
+                console.log('🔥 Firing Level 4: 5 streams!');
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, 0);      // Straight forward
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, 45);     // Up-forward diagonal
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, -45);    // Down-forward diagonal
+                this.fireSingleBullet(this.sprite.x - 20, this.sprite.y, 135);    // Up-backward diagonal
+                this.fireSingleBullet(this.sprite.x - 20, this.sprite.y, -135);   // Down-backward diagonal
+            } else if (this.gunPowerLevel === 3) {
+                // Level 3: 3 streams (forward angles)
+                console.log('🔥 Firing Level 3: 3 streams!');
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, 0);      // Straight forward
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, 45);     // Up-forward diagonal
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, -45);    // Down-forward diagonal
+            } else {
+                // Level 0-2: Single stream straight forward
+                this.fireSingleBullet(this.sprite.x + 20, this.sprite.y, 0);
             }
-            
+
             // Set cooldown for next bullet
             this.bulletTime = time + 250;
         }
     }
     
-    fireSingleBullet(x, y) {
+    fireSingleBullet(x, y, angleDegrees = 0) {
         try {
             // Get a bullet from the pool
             const bullet = this.scene.bullets.get(x, y);
-            
+
             if (bullet) {
-                
+
                 // Check if the bullet texture exists
                 if (!this.scene.textures.exists('bullet')) {
                     console.warn("Bullet texture not found, creating fallback");
-                    
+
                     // Create a fallback texture
                     const graphics = this.scene.make.graphics({});
                     graphics.fillStyle(0x00ff00, 1);
                     graphics.fillCircle(4, 4, 4);
                     graphics.generateTexture('bullet', 8, 8);
                 }
-                
+
                 // Explicitly set the texture to ensure it's correct
                 bullet.setTexture('bullet');
-                
-                // Set bullet properties - now moving right
+
+                // Set bullet properties with angle
                 bullet.setActive(true);
                 bullet.setVisible(true);
-                bullet.setVelocityX(400);
+
+                // Calculate velocity based on angle
+                const angleRadians = Phaser.Math.DegToRad(angleDegrees);
+                const speed = 400;
+                const velocityX = Math.cos(angleRadians) * speed;
+                const velocityY = Math.sin(angleRadians) * speed;
+
+                bullet.setVelocity(velocityX, velocityY);
                 
                 // Add power property for damage calculation
                 bullet.power = 10 + (this.gunPowerLevel * 5);
@@ -471,10 +497,189 @@ export default class Player {
         // Set energy weapon active
         this.energyWeaponActive = true;
         this.energyWeaponTimer = this.scene.time.now + 3000; // Active for 3 seconds
-        
+
+        // Clear all satellite emitters to prevent orphaned particles
+        if (this.scene.particleSystem && typeof this.scene.particleSystem.clearSatelliteEmitters === 'function') {
+            this.scene.particleSystem.clearSatelliteEmitters();
+        }
+
+        // Stop all hexagon trail emitters and force-destroy their particle managers
+        if (this.scene.enemyManager && this.scene.enemyManager.enemies) {
+            this.scene.enemyManager.enemies.forEach(enemy => {
+                if (enemy.trailParticleManager) {
+                    try {
+                        // Make the entire particle manager invisible
+                        enemy.trailParticleManager.setVisible(false);
+                        // Remove it from the scene
+                        enemy.trailParticleManager.destroy();
+                        enemy.trailParticleManager = null;
+                        enemy.trailEmitter = null;
+                    } catch (e) {
+                        // Ignore errors
+                    }
+                }
+            });
+        }
+
+        // AGGRESSIVE CLEANUP: Find and destroy ALL orphaned particles
+        // This includes particle emitter particles (which appear as Image objects with texture)
+        const orphanedParticles = [];
+        const particleDetails = {};
+
+        this.scene.children.list.forEach(obj => {
+            // Check for particle emitter particles (they have a 'frame' property and use textures)
+            if (obj.type === 'Image' && obj.frame && obj.texture &&
+                obj.texture.key && obj.texture.key.includes('hexagon-trail-particle')) {
+                orphanedParticles.push(obj);
+                particleDetails['hexagon_trail'] = (particleDetails['hexagon_trail'] || 0) + 1;
+            }
+
+            // Also check for circle-based particles
+            if (obj.type === 'Arc' &&
+                obj.blendMode === Phaser.BlendModes.ADD &&
+                obj.radius && obj.radius < 15 &&
+                !obj.parentContainer) {
+                orphanedParticles.push(obj);
+
+                const key = obj.isSatelliteTrail ? 'satellite_trail' :
+                           obj.isBeatParticle ? 'beat_particle' :
+                           obj.isExplosionParticle ? 'explosion_particle' : 'unknown';
+                particleDetails[key] = (particleDetails[key] || 0) + 1;
+            }
+        });
+
+        // Destroy all orphaned particles
+        orphanedParticles.forEach(particle => {
+            try {
+                if (particle.setBlendMode) {
+                    particle.setBlendMode(Phaser.BlendModes.NORMAL);
+                }
+                particle.setVisible(false);
+                particle.destroy();
+            } catch (e) {
+                // Ignore errors
+            }
+        });
+
+        if (orphanedParticles.length > 0) {
+            console.log(`🧹 Cleaned up ${orphanedParticles.length} orphaned particles:`, particleDetails);
+        }
+
+        // Multiple cleanup passes to catch hexagons that spawn after the energy weapon
+        // Run cleanup at 500ms, 1000ms, 1500ms, and 2000ms
+        [500, 1000, 1500, 2000].forEach((delay, index) => {
+            this.scene.time.delayedCall(delay, () => {
+                const lateOrphans = [];
+                this.scene.children.list.forEach(obj => {
+                    // Clean up any purple hexagon trail particles
+                    if (obj.type === 'Arc' && obj.fillColor &&
+                        (obj.fillColor === 0x9900ff || obj.fillColor === 10027263)) {
+                        lateOrphans.push(obj);
+                    }
+                });
+
+                if (lateOrphans.length > 0) {
+                    console.log(`🧹 Cleanup pass ${index + 2} (${delay}ms): removing ${lateOrphans.length} purple trail particles`);
+                    lateOrphans.forEach(particle => {
+                        try {
+                            particle.setVisible(false);
+                            particle.destroy();
+                        } catch (e) {
+                            // Ignore
+                        }
+                    });
+                }
+            });
+        });
+
+        // DEBUG: Check what's rendered after all cleanup passes complete
+        this.scene.time.delayedCall(2500, () => {
+            console.log('🔍 === DIAGNOSTIC: Objects on screen 2.5 seconds after energy weapon ===');
+
+            const objectsByType = {};
+            const purpleCircles = [];
+
+            this.scene.children.list.forEach(obj => {
+                // Count by type
+                const type = obj.type || 'unknown';
+                objectsByType[type] = (objectsByType[type] || 0) + 1;
+
+                // Find purple/magenta objects
+                if (obj.type === 'Arc' && obj.fillColor) {
+                    const colorHex = '0x' + obj.fillColor.toString(16);
+                    if (obj.fillColor === 0x9900ff || obj.fillColor === 10027263 ||
+                        obj.fillColor === 0xff00ff || obj.fillColor === 16711935) {
+                        purpleCircles.push({
+                            type: obj.type,
+                            color: colorHex,
+                            radius: obj.radius,
+                            x: Math.round(obj.x),
+                            y: Math.round(obj.y),
+                            visible: obj.visible,
+                            alpha: obj.alpha,
+                            blendMode: obj.blendMode === Phaser.BlendModes.ADD ? 'ADD' : 'NORMAL',
+                            depth: obj.depth,
+                            hasParent: !!obj.parentContainer,
+                            texture: obj.texture?.key
+                        });
+                    }
+                }
+
+                // Also check Image objects (particle emitter particles)
+                if (obj.type === 'Image' && obj.texture && obj.texture.key) {
+                    if (obj.texture.key.includes('hexagon-trail') || obj.texture.key.includes('particle')) {
+                        purpleCircles.push({
+                            type: 'Image (particle)',
+                            texture: obj.texture.key,
+                            x: Math.round(obj.x),
+                            y: Math.round(obj.y),
+                            visible: obj.visible,
+                            alpha: obj.alpha,
+                            blendMode: obj.blendMode === Phaser.BlendModes.ADD ? 'ADD' : 'NORMAL',
+                            depth: obj.depth
+                        });
+                    }
+                }
+            });
+
+            console.log('📊 Object counts by type:', objectsByType);
+
+            if (purpleCircles.length > 0) {
+                console.log(`🟣 Found ${purpleCircles.length} PURPLE/PARTICLE objects still on screen:`);
+                purpleCircles.forEach((obj, i) => {
+                    console.log(`  [${i+1}]`, obj);
+                });
+            } else {
+                console.log('✅ No purple circles or particles found - all cleaned up!');
+            }
+
+            console.log('🔍 === END DIAGNOSTIC ===');
+        });
+
+        // Stop ALL particle-related tweens to prevent mid-animation circles from persisting
+        this.scene.tweens.getAllTweens().forEach(tween => {
+            try {
+                if (tween.targets && tween.targets.length > 0) {
+                    const target = tween.targets[0];
+                    // Stop tweens targeting small circles with additive blend mode
+                    // Check if object is still valid before accessing properties
+                    if (target &&
+                        target.active !== false &&
+                        target.type === 'Arc' &&
+                        target.blendMode === Phaser.BlendModes.ADD &&
+                        typeof target.radius === 'number' &&
+                        target.radius < 15) {
+                        tween.stop();
+                    }
+                }
+            } catch (e) {
+                // Ignore errors from destroyed objects
+            }
+        });
+
         // Create visual effect - screen flash
         this.scene.cameras.main.flash(500, 0, 100, 255, 0.5);
-        
+
         // Create visual effect - camera shake
         this.scene.cameras.main.shake(500, 0.01);
         
@@ -548,14 +753,8 @@ export default class Player {
                     
                     // Then destroy them
                     enemiesToDestroy.forEach(enemy => {
-                        // Create explosion effect
-                        this.scene.particleSystem.createExplosion(enemy.x, enemy.y, enemy.width || 30, enemy.tint || 0xff0000);
-                        
-                        // Add score
-                        this.scene.enemyManager.addScoreForEnemy(enemy.enemyType);
-                        
-                        // Destroy the enemy
-                        enemy.destroy();
+                        // Use destroyEnemy to properly clean up hexagon trails
+                        this.scene.enemyManager.destroyEnemy(enemy);
                     });
                 }
             },
@@ -638,14 +837,8 @@ export default class Player {
                     // Add a delay before destroying the enemy
                     this.scene.time.delayedCall(300, () => {
                         if (enemy && enemy.active) {
-                            // Add score
-                            this.scene.enemyManager.addScoreForEnemy(enemy.enemyType);
-                            
-                            // Create explosion effect
-                            this.scene.particleSystem.createExplosion(enemy.x, enemy.y, enemy.width || 30, enemy.tint || 0xff0000);
-                            
-                            // Destroy the enemy
-                            enemy.destroy();
+                            // Use destroyEnemy to properly clean up hexagon trails
+                            this.scene.enemyManager.destroyEnemy(enemy);
                         }
                     });
                     
@@ -698,7 +891,15 @@ export default class Player {
                 scale: 2,
                 duration: 300,
                 onComplete: () => {
-                    flash.destroy();
+                    if (flash && flash.active) {
+                        flash.destroy();
+                    }
+                },
+                onStop: () => {
+                    if (flash && flash.active) {
+                        flash.setVisible(false);
+                        flash.destroy();
+                    }
                 }
             });
             
@@ -762,14 +963,8 @@ export default class Player {
                 this.scene.time.delayedCall(300, () => {
                     // Destroy the enemy after delay if it still exists
                     if (enemy && enemy.active) {
-                        // Add score
-                        this.scene.enemyManager.addScoreForEnemy(enemy.enemyType);
-                        
-                        // Create explosion effect
-                        this.scene.particleSystem.createExplosion(enemy.x, enemy.y, enemy.width || 30, enemy.tint || 0xff0000);
-                        
-                        // Destroy the enemy
-                        enemy.destroy();
+                        // Use destroyEnemy to properly clean up hexagon trails
+                        this.scene.enemyManager.destroyEnemy(enemy);
                     }
                 });
                 

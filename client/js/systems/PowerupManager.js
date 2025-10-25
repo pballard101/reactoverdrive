@@ -4,13 +4,17 @@ export default class PowerupManager {
     constructor(scene) {
         this.scene = scene;
 
-        // Power-up state
+        // Rotating power-up state
         this.powerupHex = null;
         this.powerupHexColorIndex = 0;
         this.powerupHexColors = [0x0088ff, 0x00ff88, 0xff8800]; // Blue, Green, Orange
         this.powerupHexColorNames = ['blue', 'green', 'orange'];
         this.powerupHexColorTimer = null;
         this.powerupParticleEmitter = null; // For magical trail effect
+
+        // Static power-ups state
+        this.staticPowerups = []; // Array to track multiple static power-ups
+        this.staticPowerupSpawnTimer = null;
     }
 
     spawnPowerupHex() {
@@ -264,6 +268,223 @@ export default class PowerupManager {
         }
     }
 
+    spawnStaticPowerup() {
+        try {
+            // Get game dimensions
+            const gameWidth = this.scene.gameWidth || 1280;
+            const gameHeight = this.scene.gameHeight || 720;
+
+            // Choose power-up type with weighted random
+            // Health: 40%, Energy: 35%, Gun: 25%
+            const roll = Math.random() * 100;
+            let type, color, letter;
+
+            if (roll < 40) {
+                type = 'health';
+                color = 0x00ff88; // Green
+                letter = 'H';
+            } else if (roll < 75) {
+                type = 'energy';
+                color = 0x0088ff; // Blue
+                letter = 'E';
+            } else {
+                type = 'gunpower';
+                color = 0xff8800; // Orange
+                letter = 'G';
+            }
+
+            // Create texture (75% size of rotating powerup = 22.5px radius)
+            const radius = 22.5;
+            const canvas = document.createElement('canvas');
+            canvas.width = radius * 2;
+            canvas.height = radius * 2;
+            canvas.willReadFrequently = true;
+            const ctx = canvas.getContext('2d');
+
+            // Clear canvas
+            ctx.clearRect(0, 0, radius * 2, radius * 2);
+
+            // Draw circle with simple glow
+            ctx.fillStyle = Phaser.Display.Color.HexStringToColor('#' + color.toString(16).padStart(6, '0')).rgba;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.arc(radius, radius, radius - 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Add letter in center
+            ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.strokeText(letter, radius, radius);
+            ctx.fillText(letter, radius, radius);
+
+            // Create unique texture name
+            const textureName = `powerup-static-${type}-${Date.now()}`;
+            this.scene.textures.addCanvas(textureName, canvas);
+
+            // Create sprite at right edge with random y position
+            const powerup = this.scene.physics.add.sprite(
+                gameWidth + 50,
+                Phaser.Math.Between(100, gameHeight - 100),
+                textureName
+            );
+
+            // Set properties
+            powerup.setVelocityX(-100);
+            powerup.setDepth(100);
+            powerup.powerupType = type;
+            powerup.powerupColor = color; // Store color for explosion effect
+            powerup.isStaticPowerup = true;
+
+            // Add glow effect
+            if (this.scene.particleSystem) {
+                this.scene.particleSystem.addGlowEffect(powerup, color);
+            }
+
+            // Add subtle pulsing
+            this.scene.tweens.add({
+                targets: powerup,
+                scale: 1.15,
+                duration: 600,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+
+            // Add to tracking array
+            this.staticPowerups.push(powerup);
+
+            // Add collision with player
+            this.scene.physics.add.overlap(this.scene.player.sprite, powerup, (player, powerupSprite) => {
+                const powerupX = powerupSprite.x;
+                const powerupY = powerupSprite.y;
+                const powerupType = powerupSprite.powerupType;
+                const powerupColor = powerupSprite.powerupColor;
+
+                // Apply effect based on type
+                this.applyStaticPowerupEffect(powerupType, powerupX, powerupY, powerupColor);
+
+                // Remove from tracking array
+                const index = this.staticPowerups.indexOf(powerupSprite);
+                if (index > -1) {
+                    this.staticPowerups.splice(index, 1);
+                }
+
+                // Destroy sprite
+                powerupSprite.destroy();
+            });
+
+            console.log(`✨ Spawned static ${type} powerup`);
+            return powerup;
+        } catch (error) {
+            console.warn("Error spawning static powerup:", error);
+            return null;
+        }
+    }
+
+    applyStaticPowerupEffect(type, x, y, color) {
+        try {
+            switch (type) {
+                case 'health':
+                    // Add 25 health
+                    const healthBefore = this.scene.player.health;
+                    this.scene.player.health = Math.min(100, this.scene.player.health + 25);
+                    const healthAdded = this.scene.player.health - healthBefore;
+
+                    if (this.scene.soundManager) {
+                        this.scene.soundManager.playPowerupHealth();
+                    }
+
+                    this.scene.uiManager.updateHealthBar();
+                    this.scene.uiManager.showPowerupEffect('health', healthAdded);
+                    break;
+
+                case 'energy':
+                    // Add 25 energy
+                    this.scene.player.addEnergy(25);
+
+                    if (this.scene.soundManager) {
+                        this.scene.soundManager.playPowerupEnergy();
+                    }
+
+                    this.scene.uiManager.showPowerupEffect('energy', 25);
+                    break;
+
+                case 'gunpower':
+                    // Increase gun power
+                    if (this.scene.player.increaseGunPower()) {
+                        if (this.scene.soundManager) {
+                            this.scene.soundManager.playPowerupGun();
+                        }
+
+                        const gunPowerLevel = this.scene.player.gunPowerLevel;
+                        let powerDescription;
+
+                        if (gunPowerLevel === 1) {
+                            powerDescription = `50% FASTER!`;
+                        } else if (gunPowerLevel === 2) {
+                            powerDescription = `75% FASTER!`;
+                        } else if (gunPowerLevel === 3) {
+                            powerDescription = `90% FASTER + 3 STREAMS!`;
+                        } else if (gunPowerLevel === 4) {
+                            powerDescription = `MAX POWER + 5 STREAMS!`;
+                        }
+
+                        this.scene.uiManager.showPowerupEffect('gunpower', powerDescription);
+                    } else {
+                        // Already at max, give score
+                        this.scene.addScore(500);
+
+                        if (this.scene.soundManager) {
+                            this.scene.soundManager.playPowerupGun();
+                        }
+
+                        this.scene.uiManager.showPowerupEffect('score', 500);
+                    }
+                    break;
+            }
+
+            // Create explosion effect
+            if (this.scene.particleSystem) {
+                this.scene.particleSystem.createExplosion(x, y, 45, color);
+            }
+        } catch (error) {
+            console.warn("Error applying static powerup effect:", error);
+        }
+    }
+
+    startStaticPowerupSpawner() {
+        // Clear any existing timer
+        if (this.staticPowerupSpawnTimer) {
+            this.staticPowerupSpawnTimer.remove();
+        }
+
+        // Spawn first one after a short delay
+        this.scene.time.delayedCall(2000, () => {
+            this.spawnStaticPowerup();
+        });
+
+        // Set up recurring spawner (3-5 seconds)
+        this.staticPowerupSpawnTimer = this.scene.time.addEvent({
+            delay: Phaser.Math.Between(3000, 5000),
+            callback: () => {
+                this.spawnStaticPowerup();
+
+                // Randomize next spawn time
+                this.staticPowerupSpawnTimer.delay = Phaser.Math.Between(3000, 5000);
+            },
+            loop: true
+        });
+
+        console.log('🎯 Static powerup spawner started');
+    }
+
     createMagicalTrail() {
         try {
             // Create a STAR particle texture for the magical trail
@@ -468,6 +689,15 @@ export default class PowerupManager {
     update() {
         // Update particle trail position if needed
         // (Phaser's follow system handles this automatically)
+
+        // Check for off-screen static powerups
+        for (let i = this.staticPowerups.length - 1; i >= 0; i--) {
+            const powerup = this.staticPowerups[i];
+            if (powerup && powerup.active && powerup.x < -50) {
+                powerup.destroy();
+                this.staticPowerups.splice(i, 1);
+            }
+        }
     }
 
     cleanup() {
@@ -475,6 +705,11 @@ export default class PowerupManager {
         if (this.powerupHexColorTimer) {
             this.powerupHexColorTimer.remove();
             this.powerupHexColorTimer = null;
+        }
+
+        if (this.staticPowerupSpawnTimer) {
+            this.staticPowerupSpawnTimer.remove();
+            this.staticPowerupSpawnTimer = null;
         }
 
         if (this.powerupParticleManager) {
@@ -487,5 +722,13 @@ export default class PowerupManager {
             this.powerupHex.destroy();
             this.powerupHex = null;
         }
+
+        // Clean up all static powerups
+        for (const powerup of this.staticPowerups) {
+            if (powerup && powerup.active) {
+                powerup.destroy();
+            }
+        }
+        this.staticPowerups = [];
     }
 }

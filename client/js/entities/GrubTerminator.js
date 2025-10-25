@@ -324,7 +324,16 @@ export default class GrubTerminator {
             duration: 200,
             ease: 'Power2.easeOut',
             onComplete: () => {
-                flash.destroy();
+                if (flash && flash.active) {
+                    flash.destroy();
+                }
+            },
+            onStop: () => {
+                if (flash && flash.active) {
+                    flash.setBlendMode(Phaser.BlendModes.NORMAL);
+                    flash.setVisible(false);
+                    flash.destroy();
+                }
             }
         });
         
