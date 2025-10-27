@@ -275,12 +275,6 @@ export default class MenuScene extends Phaser.Scene {
                 console.log("✅ Dropdown removed!");
             }
 
-            // Stop any existing GameScene before starting a new one
-            if (this.scene.isActive('GameScene')) {
-                console.log("🛑 Stopping existing GameScene");
-                this.scene.stop('GameScene');
-            }
-
             // Transition to GameScene with the selected song data
             this.scene.start('GameScene', { songData: this.selectedSong });
         } else {

@@ -284,7 +284,8 @@ export default class HighScoreDisplay {
             }
 
             // SUPER EMERGENCY DIRECT TRANSITION - Skip everything
-            this.scene.scene.start('MenuScene', { restart: true });
+            console.log("🔄 HighScoreDisplay emergency transition - reloading page...");
+            window.location.reload();
 
             // Also call hide() in case the direct transition fails
             this.scene.time.delayedCall(100, () => {
@@ -560,7 +561,8 @@ export default class HighScoreDisplay {
                 } else {
                     console.warn("⚠️ No onHidden callback registered");
                     // ALWAYS force scene transition as a last resort - don't depend on isGameOver flag
-                    this.scene.scene.start('MenuScene', { restart: true });
+                    console.log("🔄 HighScoreDisplay hide complete - reloading page...");
+                    window.location.reload();
                 }
             }
         });

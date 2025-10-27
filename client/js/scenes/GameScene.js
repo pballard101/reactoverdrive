@@ -38,15 +38,20 @@ export default class GameScene extends Phaser.Scene {
         if (this.songData) {
             const basePath = this.songData.path;
             const filename = this.songData.filename;
-            
+
             // Extract base filename (without extension)
             const baseFilename = filename.replace('.mp3', '');
-            
-            // Try different possible analysis filename patterns
-            // First try with underscore pattern (e.g., song_analysis.json)
+
+            // Check if basePath already includes the full file path (for processed songs)
+            const isFullPath = basePath.endsWith('.mp3');
+
+            // Construct paths based on whether we have a full path or directory path
+            const audioPath = isFullPath ? basePath : `${basePath}/${filename}`;
+
+            // For analysis file, if we have a full path, get the directory
+            const analysisBasePath = isFullPath ? basePath.substring(0, basePath.lastIndexOf('/')) : basePath;
             const analysisFile = `${baseFilename}_analysis.json`;
-            const jsonPath = `${basePath}/${analysisFile}`;
-            const audioPath = `${basePath}/${filename}`;
+            const jsonPath = `${analysisBasePath}/${analysisFile}`;
 
             
             // Pre-fetch to see if audio file exists
@@ -148,17 +153,21 @@ export default class GameScene extends Phaser.Scene {
         
         // Set up a more robust callback when high scores are dismissed
         this.highScoreDisplay.setHiddenCallback(() => {
-            
+            console.log(`🎯 HighScore hidden callback fired! isGameOver=${this.isGameOver}, enteringInitials=${this.enteringInitials}`);
+
             this.showingHighScores = false;
-            
+
             // If the game is over and we're not entering initials,
             // explicitly return to the menu
             if (this.isGameOver && !this.enteringInitials) {
-                
+                console.log("✅ Conditions met - calling returnToMenu in 100ms");
+
                 // Use a short delay to allow any lingering animations to complete
                 this.time.delayedCall(100, () => {
                     this.returnToMenu();
                 });
+            } else {
+                console.log("❌ Conditions NOT met - not calling returnToMenu");
             }
         });
         
@@ -884,10 +893,14 @@ export default class GameScene extends Phaser.Scene {
         
         // Add file path info if available
         if (this.songData) {
+            // Show the actual audio path used (handle both full paths and directory paths)
+            const displayPath = this.songData.path.endsWith('.mp3')
+                ? this.songData.path
+                : `${this.songData.path}/${this.songData.filename}`;
             const pathInfo = this.add.text(
-                this.gameWidth / 2, 
-                this.gameHeight / 2 + 80, 
-                `Path: ${this.songData.path}/${this.songData.filename}`, 
+                this.gameWidth / 2,
+                this.gameHeight / 2 + 80,
+                `Path: ${displayPath}`, 
                 {
                     fontSize: '14px',
                     color: '#aaaaaa',
@@ -1649,7 +1662,7 @@ export default class GameScene extends Phaser.Scene {
         // DEBUG FLAG - Set to true to force immediate transition to MenuScene for testing
         const EMERGENCY_BYPASS = false;
         if (EMERGENCY_BYPASS) {
-            this.scene.start('MenuScene', { restart: true });
+            window.location.reload();
             return;
         }
         
@@ -1673,14 +1686,14 @@ export default class GameScene extends Phaser.Scene {
         // EMERGENCY ESCAPE HATCH - Force return to menu after 8 seconds no matter what
         // This guarantees we won't get stuck in this screen
         const emergencyTimerId = setTimeout(() => {
-            this.scene.start('MenuScene', { restart: true });
+            window.location.reload();
         }, 8000);
         
         if (!this.songData || !this.songData.filename) {
             console.error("Cannot submit high score: no song data available");
             // Skip high score display and go directly to menu
             clearTimeout(emergencyTimerId);
-            this.scene.start('MenuScene', { restart: true });
+            window.location.reload();
             return;
         }
         
@@ -1823,7 +1836,9 @@ export default class GameScene extends Phaser.Scene {
      * Return to the menu scene
      */
     returnToMenu() {
-        this.scene.start('MenuScene', { restart: true });
+        console.log("🔄 returnToMenu() called - reloading page...");
+        // Just reload the page to completely reset everything
+        window.location.reload();
     }
     
     /**
