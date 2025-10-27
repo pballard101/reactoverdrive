@@ -658,25 +658,30 @@ export default class EnemyManager {
         this.destroyEnemy(enemy);
     }
     
-    destroyEnemy(enemy, isHexagonKill = false) {
+    destroyEnemy(enemy, isHexagonKill = false, fromEnergyWeapon = false) {
         try {
             // CRITICAL: Disable physics and collisions FIRST
             if (enemy.body) {
                 enemy.body.enable = false;
             }
-            
+
             // Disable collision detection
             enemy.setActive(false);
             enemy.isBeingDestroyed = true;
-            
+
             let pointsAwarded = 0;
-            
+
             // Calculate base points based on enemy type
             pointsAwarded = this.getPointsForEnemyType(enemy.enemyType);
-            
+
             // Play enemy destroyed sound
             if (this.scene.soundManager) {
                 this.scene.soundManager.playEnemyDestroyed();
+            }
+
+            // Register kill with commentator (but not from energy weapon)
+            if (!fromEnergyWeapon && this.scene.commentator) {
+                this.scene.commentator.registerKill();
             }
             
             // If this is a kill by a hexagon in reverse motion, add 25% bonus

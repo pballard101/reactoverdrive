@@ -13,6 +13,7 @@ import HighScoreManager from '../utils/HighScoreManager.js';
 import HighScoreDisplay from '../ui/HighScoreDisplay.js';
 import InitialsInput from '../ui/InitialsInput.js';
 import PauseMenu from '../ui/PauseMenu.js';
+import Commentator from '../systems/Commentator.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -283,7 +284,10 @@ export default class GameScene extends Phaser.Scene {
         
         // Create sound manager
         this.soundManager = new SoundManager(this);
-        
+
+        // Create commentator
+        this.commentator = new Commentator(this);
+
         // Setup controls
         this.setupControls();
         
@@ -1505,7 +1509,12 @@ export default class GameScene extends Phaser.Scene {
         }
         
         this.isGameOver = true;
-        
+
+        // Reset commentator
+        if (this.commentator) {
+            this.commentator.reset();
+        }
+
         // Stop audio and cleanup
         if (this.audioAnalyzer) {
             this.audioAnalyzer.cleanup();

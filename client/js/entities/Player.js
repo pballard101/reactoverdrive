@@ -754,7 +754,8 @@ export default class Player {
                     // Then destroy them
                     enemiesToDestroy.forEach(enemy => {
                         // Use destroyEnemy to properly clean up hexagon trails
-                        this.scene.enemyManager.destroyEnemy(enemy);
+                        // Pass true for fromEnergyWeapon to prevent commentator from counting these
+                        this.scene.enemyManager.destroyEnemy(enemy, false, true);
                     });
                 }
             },
@@ -838,7 +839,8 @@ export default class Player {
                     this.scene.time.delayedCall(300, () => {
                         if (enemy && enemy.active) {
                             // Use destroyEnemy to properly clean up hexagon trails
-                            this.scene.enemyManager.destroyEnemy(enemy);
+                            // Pass true for fromEnergyWeapon to prevent commentator from counting these
+                            this.scene.enemyManager.destroyEnemy(enemy, false, true);
                         }
                     });
                     
@@ -964,7 +966,8 @@ export default class Player {
                     // Destroy the enemy after delay if it still exists
                     if (enemy && enemy.active) {
                         // Use destroyEnemy to properly clean up hexagon trails
-                        this.scene.enemyManager.destroyEnemy(enemy);
+                        // Pass true for fromEnergyWeapon to prevent commentator from counting these
+                        this.scene.enemyManager.destroyEnemy(enemy, false, true);
                     }
                 });
                 
