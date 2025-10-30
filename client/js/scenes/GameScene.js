@@ -40,6 +40,13 @@ export default class GameScene extends Phaser.Scene {
             const basePath = this.songData.path;
             const filename = this.songData.filename;
 
+            console.log("🎵 GameScene.preload() - Loading song:", {
+                title: this.songData.title,
+                artist: this.songData.artist,
+                basePath: basePath,
+                filename: filename
+            });
+
             // Extract base filename (without extension)
             const baseFilename = filename.replace('.mp3', '');
 
@@ -54,80 +61,56 @@ export default class GameScene extends Phaser.Scene {
             const analysisFile = `${baseFilename}_analysis.json`;
             const jsonPath = `${analysisBasePath}/${analysisFile}`;
 
-            
-            // Pre-fetch to see if audio file exists
-            this.checkFileExists(audioPath).then(exists => {
-                if (exists) {
-                    this.load.audio('music', audioPath);
-                    this.load.start();
-                } else {
-                    // Try alternative paths
-                    const alternativePaths = [
-                        // Try asset music folder
-                        `assets/music/${filename}`,
-                        // Try data folder without subdirectory
-                        `data/${filename}`,
-                        // Try with path corrected
-                        `data/uploads/${filename}`,
-                        // Try processed folder
-                        `data/processed/${filename}`,
-                    ];
-                    
-                    // Try each path
-                    this.tryNextAudioPath(alternativePaths);
-                }
+            console.log("📊 Computed paths:", {
+                audioPath: audioPath,
+                jsonPath: jsonPath,
+                isFullPath: isFullPath
             });
-            
-            // Pre-fetch to see if analysis file exists
-            this.checkFileExists(jsonPath).then(exists => {
-                if (exists) {
-                    this.load.json('audioData', jsonPath);
-                    this.load.start();
-                } else {
-                    // Try alternative analysis paths
-                    const alternativeAnalysisPaths = [
-                        // Try with plain .json extension
-                        `${basePath}/${baseFilename}.json`,
-                        // Try with direct data path
-                        `data/uploads/${baseFilename}_analysis.json`,
-                        // Try with processed folder
-                        `data/processed/${baseFilename}_analysis.json`,
-                    ];
-                    
-                    // Try each analysis path
-                    this.tryNextAnalysisPath(alternativeAnalysisPaths);
-                }
-            });
-            
+
+            // Queue both audio and JSON for loading (don't start yet)
+            console.log("📦 Queueing audio file:", audioPath);
+            this.load.audio('music', audioPath);
+
+            console.log("📦 Queueing JSON file:", jsonPath);
+            this.load.json('audioData', jsonPath);
+
             // Add loaders with better error handling
             this.load.on('filecomplete-audio-music', (key, type, data) => {
+                console.log("✅ Audio loaded successfully:", key);
             });
-            
+
             this.load.on('filecomplete-json-audioData', (key, type, data) => {
+                console.log("✅ JSON loaded successfully! Keys:", Object.keys(data));
+                console.log("   - Beats:", data.beats ? data.beats.length : 0);
+                console.log("   - Segments:", data.segments ? data.segments.length : 0);
                 this.audioData = data;
             });
-            
-            // Add error handlers for the file loads 
+
+            // Add error handlers for the file loads
             this.load.on('loaderror', (fileObj) => {
-                console.error(`❌ Error loading file: ${fileObj.key}`, fileObj);
-                
-                if (fileObj.key === 'audioData') {
-                    // Already handled through tryNextAnalysisPath
-                }
-                
-                if (fileObj.key === 'music') {
-                    // Already handled through tryNextAudioPath
-                }
+                console.error(`❌ LOADER ERROR:`, {
+                    key: fileObj.key,
+                    url: fileObj.url,
+                    type: fileObj.type
+                });
             });
 
             this.load.once('complete', () => {
+                console.log("🏁 Phaser loader complete");
+                console.log("   - Audio in cache:", this.cache.audio.exists('music'));
+                console.log("   - JSON in cache:", this.cache.json.exists('audioData'));
+
                 if (this.cache.json.exists('audioData')) {
                     this.audioData = this.cache.json.get('audioData');
+                    console.log("✅ Retrieved audioData from cache");
                 } else {
                     console.error(`❌ audioData not found in cache after load completed!`);
+                    console.error("   The JSON file failed to load");
                 }
             });
 
+            // Start the loader ONCE - loads both audio and JSON together
+            console.log("🚀 Starting Phaser loader (will load audio + JSON)");
             this.load.start();
         } else {
             console.error("❌ No song data provided to GameScene");
