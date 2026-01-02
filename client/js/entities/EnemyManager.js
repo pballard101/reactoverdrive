@@ -90,8 +90,8 @@ export default class EnemyManager {
         }
         
         // Map musical characteristics to enemy types (deterministic)
-        if (enemyValue < 0.15) {
-            // Complex/high-energy music -> hexagon
+        if (enemyValue < 0.10) {
+            // Complex/high-energy music -> hexagon (reduced from 0.15 to 0.10 = 10% instead of 15%)
             color = 0x9900ff; // Purple for hexagon
             enemyType = 'hexagon';
         } else if (enemyValue < 0.40) {
@@ -128,18 +128,18 @@ export default class EnemyManager {
         // 2. Current volume (louder = bigger) - Moderate effect
         // 3. BPM (faster songs = smaller enemies, slower songs = bigger enemies) - Subtle scaling
         
-        // Start with base size from beat strength (smaller range)
-        let baseSize = 8 + (strength * 15); // Range 8-23 (much smaller)
-        
+        // Start with base size from beat strength (increased minimum)
+        let baseSize = 12 + (strength * 18); // Range 12-30 (raised minimum from 8)
+
         // Add volume factor - BALANCED effect for dynamic feel
-        const volumeFactor = 1 + (volumeLevel * 0.8); // Up to 1.8x size at max volume
-        
+        const volumeFactor = 1 + (volumeLevel * 0.5); // Up to 1.5x size at max volume (reduced from 0.8)
+
         // Add inverse BPM factor with MODERATE scaling
-        // At 60 BPM: 1.6x size, at 180 BPM: 0.6x size
-        const bpmFactor = 1.6 - (Math.min(Math.max(currentBPM, 60), 180) / 200); // Moderate scaling
-        
-        // Combine all factors to get final size
-        const size = Math.round(baseSize * volumeFactor * bpmFactor);
+        // At 60 BPM: 1.4x size, at 180 BPM: 0.8x size (less extreme)
+        const bpmFactor = 1.4 - (Math.min(Math.max(currentBPM, 60), 180) / 300); // Less extreme scaling
+
+        // Combine all factors to get final size with enforced minimum
+        const size = Math.max(15, Math.round(baseSize * volumeFactor * bpmFactor)); // Minimum 15px
         
         // Debug logging when size is especially notable
         

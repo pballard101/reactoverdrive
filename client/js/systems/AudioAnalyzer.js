@@ -46,7 +46,11 @@ export default class AudioAnalyzer {
         // Track active notes for enemy spawning
         this.currentActiveNotes = ['C', 'E', 'G']; // Default to C major chord notes
         this.lastNoteChangeTime = 0;
-        
+
+        // Onset tracking for sharp musical hits (drum hits, attacks)
+        this.nextOnsetIndex = 0;
+        this.lastOnsetTime = 0;
+
         // Initialize EQ visualizer
         this.eqVisualizer = new EQVisualizer(scene);
     }
@@ -121,43 +125,54 @@ export default class AudioAnalyzer {
         // Calculate current audio intensity and volume (for energy field and enemy sizing)
         let audioIntensity = 0.3; // Default moderate intensity
         let currentVolume = 0.5; // Default volume level
-        
+
         // Update UI volume debug more frequently - on every frame
         if (this.scene.uiManager && typeof this.scene.uiManager.updateVolumeDebug === 'function') {
             this.scene.uiManager.updateVolumeDebug(this.currentVolume, this.currentBPM);
         }
-        
-        // Use beat strength if available for better intensity calculation
-        if (this.audioData && this.audioData.beats && this.nextBeatIndex > 0 && this.nextBeatIndex < this.audioData.beats.length) {
-            // Get the most recent beat
+
+        // ENHANCED: Use real-time energy_profile for much more accurate reactivity
+        if (this.audioData && this.audioData.energy_profile && this.audioData.energy_profile.length > 0) {
+            // Binary search to find the closest energy sample for current time
+            const energyProfile = this.audioData.energy_profile;
+            let left = 0;
+            let right = energyProfile.length - 1;
+            let closestIndex = 0;
+
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (energyProfile[mid].time <= currentTime) {
+                    closestIndex = mid;
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+
+            // Get the energy value at this time
+            const energyValue = energyProfile[closestIndex].energy;
+
+            // Normalize energy value (typically 0-0.5 range, normalize to 0-1)
+            currentVolume = Math.min(1.0, energyValue * 2.5);
+            audioIntensity = Math.min(1.0, energyValue * 2.0);
+
+        } else if (this.audioData && this.audioData.beats && this.nextBeatIndex > 0 && this.nextBeatIndex < this.audioData.beats.length) {
+            // Fallback to beat-based calculation if energy_profile not available
             const recentBeat = this.audioData.beats[this.nextBeatIndex - 1];
-            
-            // Calculate time since last beat
             const timeSinceLastBeat = currentTime - recentBeat.time;
-            
-            // Intensity decays over time since last beat (max 2 seconds)
             const decayFactor = Math.max(0, 1 - (timeSinceLastBeat / 2));
-            
-            // Use beat strength and BPM to calculate intensity
+
             audioIntensity = 0.2 + (recentBeat.strength * 0.5 * decayFactor) + (this.currentBPM / 200 * 0.3);
-            
-            // Ensure intensity is within 0-1 range
             audioIntensity = Math.min(1, Math.max(0, audioIntensity));
-            
-            // Extract volume information from recent beats - check both strength and energy properties
-            let beatVolume = 0.5; // Default value
-            
-            // First try to get strength
+
+            let beatVolume = 0.5;
             if (typeof recentBeat.strength === 'number') {
                 beatVolume = recentBeat.strength;
-            } 
-            // Then try energy if strength isn't available
-            else if (typeof recentBeat.energy === 'number') {
+            } else if (typeof recentBeat.energy === 'number') {
                 beatVolume = recentBeat.energy;
             }
-            
-            // Amplify the volume value to make it more pronounced
-            currentVolume = Math.min(1.0, beatVolume * 2.0); // Double the effect (was 1.2)
+
+            currentVolume = Math.min(1.0, beatVolume * 2.0);
         }
         
         // Update current volume for enemy scaling - even less smoothing for more pronounced changes
@@ -179,9 +194,9 @@ export default class AudioAnalyzer {
         // Detect significant volume changes to pulse existing enemies - lower threshold even more
         if (Math.abs(this.currentVolume - previousVolume) > 0.05) { // Was 0.1
             this.pulseExistingEnemies(this.currentVolume);
-            
-            // Add a VERY obvious notification about volume changes
-            this.showVolumeChangeNotification(this.currentVolume);
+
+            // Debug notification removed - was too distracting
+            // this.showVolumeChangeNotification(this.currentVolume);
         }
         
         // Update time debug text
@@ -217,16 +232,20 @@ export default class AudioAnalyzer {
         
         // Process beats
         this.processBeat(currentTime);
-        
+
+        // Process onsets (sharp musical attacks/hits)
+        this.processOnsets(currentTime);
+
         // Process segments
         this.processSegment(currentTime);
-        
+
         // Check if we've reached the end of the track
         if (this.audioData && this.audioData.metadata && currentTime >= this.audioData.metadata.duration) {
             // Instead of stopping, just reset the game time to loop back to the beginning
             this.scene.gameStartTime = this.scene.time.now;
             this.nextBeatIndex = 0;
             this.currentSegmentIndex = 0;
+            this.nextOnsetIndex = 0; // Reset onset tracking too
         }
         
         // Spawn enemies at a controlled rate even if beat detection fails
@@ -234,9 +253,15 @@ export default class AudioAnalyzer {
     }
     
     controlledEnemySpawning(currentTime) {
+        // ENERGY GATE: Don't spawn if music is too quiet
+        const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
+        if (this.currentVolume < ENERGY_THRESHOLD) {
+            return; // Skip spawning during quiet parts
+        }
+
         // Only spawn enemies if enough time has passed since the last spawn
-        const minTimeBetweenSpawns = 1.5; // Reduced from 2.0 seconds between spawns
-        
+        const minTimeBetweenSpawns = 2.0; // Balanced delay (2 seconds)
+
         // Count existing enemies for performance management only
         let enemyCount = 0;
         this.scene.children.list.forEach(obj => {
@@ -244,12 +269,21 @@ export default class AudioAnalyzer {
                 enemyCount++;
             }
         });
-        
-        // Check if current segment is high energy (like chorus)
-        let isHighEnergySegment = false;
+
+        // ENHANCED: Use actual segment energy value instead of just type
+        let segmentEnergyMultiplier = 1.0;
         if (this.audioData && this.audioData.segments && this.currentSegmentIndex < this.audioData.segments.length) {
             const segment = this.audioData.segments[this.currentSegmentIndex];
-            isHighEnergySegment = segment.type === 'chorus';
+
+            // Use segment's actual energy level (typically 0.3-0.5 range)
+            // Normalize to 0.5-1.5 multiplier for spawn rate
+            if (typeof segment.energy === 'number') {
+                segmentEnergyMultiplier = 0.5 + (segment.energy * 2.0);
+            } else {
+                // Fallback to type-based multiplier if no energy data
+                if (segment.type === 'chorus') segmentEnergyMultiplier = 1.5;
+                else if (segment.type === 'bridge') segmentEnergyMultiplier = 0.8;
+            }
         }
         
         // Calculate adaptive enemy cap based on current BPM
@@ -263,29 +297,27 @@ export default class AudioAnalyzer {
         if (enemyCount < enemyCap && currentTime - this.lastEnemySpawnTime > minTimeBetweenSpawns) {
             // Spawn enemies with controlled strength
             if (this.scene.enemyManager && typeof this.scene.enemyManager.spawnEnemy === 'function') {
-                // Determine how many enemies to spawn based on BPM
+                // Determine how many enemies to spawn based on BPM and segment energy
                 let enemiesToSpawn = 1;
-                
+
                 // For faster music (higher BPM), spawn more enemies per batch
                 if (this.currentBPM > 150) {
                     enemiesToSpawn = 3; // Very fast music
                 } else if (this.currentBPM > 120) {
                     enemiesToSpawn = 2; // Moderately fast music
                 }
-                
-                // Maybe spawn even more enemies in high-energy segments
-                if (isHighEnergySegment) {
-                    enemiesToSpawn += 1;
-                }
-                
+
+                // Apply segment energy multiplier to spawn count
+                enemiesToSpawn = Math.round(enemiesToSpawn * segmentEnergyMultiplier);
+                enemiesToSpawn = Math.max(1, enemiesToSpawn); // At least 1
+
                 // Spawn the enemies
                 for (let i = 0; i < enemiesToSpawn; i++) {
                     // Use wider and higher strength range (0.3-0.7 instead of 0.3-0.6)
                     const randomStrength = 0.3 + (Math.random() * 0.4);
-                    
-                    // Increase strength for high energy segments
-                    const finalStrength = isHighEnergySegment ? 
-                        Math.min(0.8, randomStrength + 0.1) : randomStrength;
+
+                    // Scale strength by segment energy multiplier
+                    const finalStrength = Math.min(0.9, randomStrength * segmentEnergyMultiplier);
                     
                     // Get a random note from current active notes
                     const note = this.getRandomActiveNote();
@@ -516,11 +548,86 @@ export default class AudioAnalyzer {
             this.nextBeatIndex = 0;
         }
     }
-    
+
+    processOnsets(currentTime) {
+        // Check if we have onset data
+        if (!this.audioData || !this.audioData.onsets || this.audioData.onsets.length === 0) {
+            return; // No onset data available
+        }
+
+        // Process all onsets that have occurred since last check
+        while (this.nextOnsetIndex < this.audioData.onsets.length) {
+            const onsetTime = this.audioData.onsets[this.nextOnsetIndex];
+
+            if (currentTime >= onsetTime) {
+                // Onset detected!
+                this.onOnset(onsetTime, currentTime);
+                this.nextOnsetIndex++;
+            } else {
+                break; // No more onsets to process this frame
+            }
+        }
+
+        // Loop back if we've processed all onsets
+        if (this.nextOnsetIndex >= this.audioData.onsets.length) {
+            this.nextOnsetIndex = 0;
+        }
+    }
+
+    onOnset(onsetTime, currentTime) {
+        // Prevent too frequent onset triggers (INCREASED cooldown to reduce flicker)
+        if (currentTime - this.lastOnsetTime < 0.15) { // Increased from 0.033 to 0.15 (max ~6-7 per second)
+            return;
+        }
+
+        this.lastOnsetTime = currentTime;
+
+        // Calculate onset strength based on energy at this moment
+        let onsetStrength = this.currentVolume;
+
+        // Only trigger visual effects on strong onsets (raised threshold)
+        if (onsetStrength < 0.5) {
+            return; // Skip weak onsets entirely
+        }
+
+        // Use vignette pulse instead of screen flash for smoother effect
+        if (this.scene.vignetteEffect && onsetStrength > 0.6) {
+            try {
+                const strength = 0.3 + (onsetStrength * 0.4);
+                const radius = Math.max(0.4, 0.8 - (onsetStrength * 0.2));
+
+                this.scene.tweens.add({
+                    targets: this.scene.vignetteEffect,
+                    strength: strength,
+                    radius: radius,
+                    duration: 100,
+                    yoyo: true,
+                    ease: 'Sine.easeOut'
+                });
+            } catch (error) {
+                // Silently handle vignette errors
+            }
+        }
+
+        // Very subtle camera shake for powerful onsets only
+        if (onsetStrength > 0.7 && this.scene.cameraManager) {
+            const shakeIntensity = (onsetStrength - 0.7) * 0.005; // Reduced intensity
+            this.scene.cameraManager.shake(40, shakeIntensity); // Shorter duration
+        }
+
+        // Removed particle bursts - were too distracting
+
+        // Occasionally spawn a "burst" enemy on very strong onsets
+        if (onsetStrength > 0.75 && Math.random() < 0.1 && this.scene.enemyManager) {
+            const note = this.getRandomActiveNote();
+            this.scene.enemyManager.spawnEnemy(onsetStrength, note);
+        }
+    }
+
     // Track last segment type for comparison to avoid duplicate effects
     lastSegmentType = null;
     lastSegmentChangeTime = 0;
-    
+
     processSegment(currentTime) {
         // Check if we have segment data
         if (!this.audioData || !this.audioData.segments || this.audioData.segments.length === 0) {
@@ -980,19 +1087,25 @@ export default class AudioAnalyzer {
     }
     
     spawnEnemiesOnBeat(beat) {
+        // ENERGY GATE: Don't spawn if music is too quiet
+        const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
+        if (this.currentVolume < ENERGY_THRESHOLD) {
+            return; // Skip spawning during quiet parts
+        }
+
         // Make sure enemyManager exists and has spawnEnemy function
         if (!this.scene.enemyManager || typeof this.scene.enemyManager.spawnEnemy !== 'function') {
             console.error("Enemy manager not found or missing spawnEnemy function!");
             return;
         }
-        
+
         // Calculate adaptive enemy cap based on current BPM
         // Faster songs (higher BPM) can have more enemies
         // Range: 25 enemies at 60 BPM to 50 enemies at 180+ BPM
         const baseCap = 25;
         const bpmBonus = Math.max(0, Math.min(25, (this.currentBPM - 60) / 5));
         const enemyCap = Math.round(baseCap + bpmBonus);
-        
+
         // Count existing enemies to prevent performance issues
         let enemyCount = 0;
         this.scene.children.list.forEach(obj => {
@@ -1005,41 +1118,37 @@ export default class AudioAnalyzer {
         if (enemyCount < enemyCap) {
             // Determine enemy count based on beat strength, BPM, and segment type
             let enemiesToSpawn = 0;
-            
-            // Base enemy count on beat strength
-            if (beat.strength > 0.7) {
-                enemiesToSpawn = 3; // Very strong beat
-            } else if (beat.strength > 0.45) {
-                enemiesToSpawn = 2; // Medium beat
+
+            // Base enemy count on beat strength (BALANCED)
+            if (beat.strength > 0.75) {
+                enemiesToSpawn = 2; // Very strong beat
+            } else if (beat.strength > 0.5) {
+                enemiesToSpawn = 1; // Medium-strong beat
+            } else if (beat.strength > 0.35) {
+                enemiesToSpawn = Math.random() < 0.6 ? 1 : 0; // Weaker beat - 60% chance
             } else if (beat.strength > 0.25) {
-                enemiesToSpawn = 1; // Weaker beat
-            } else if (Math.random() < 0.3) {
-                // Even weak beats have a chance to spawn enemies
-                enemiesToSpawn = 1;
+                enemiesToSpawn = Math.random() < 0.3 ? 1 : 0; // Very weak beat - 30% chance
             }
-            
-            // Adjust based on BPM - faster songs (higher BPM) spawn more enemies per beat
-            const bpmFactor = this.currentBPM / 120; // 1.0 at normal tempo, 1.5 at 180 BPM
+
+            // Adjust based on BPM - faster songs spawn slightly more
+            const bpmFactor = Math.min(1.4, this.currentBPM / 130); // Balanced multiplier
             enemiesToSpawn = Math.round(enemiesToSpawn * bpmFactor);
-            
-            // Ensure at least 1 enemy for beats that should spawn something
-            if (beat.strength > 0.25 && enemiesToSpawn === 0) {
+
+            // Ensure at least 1 enemy for medium-strength beats
+            if (beat.strength > 0.4 && enemiesToSpawn === 0) {
                 enemiesToSpawn = 1;
             }
             
-            // Modify based on segment type
+            // Modify based on segment type (REDUCED bonuses)
             if (this.audioData.segments && this.currentSegmentIndex < this.audioData.segments.length) {
                 const segment = this.audioData.segments[this.currentSegmentIndex];
                 if (segment.type === 'chorus') {
-                    enemiesToSpawn += 2; // More enemies during chorus
-                } else if (segment.type === 'verse') {
-                    enemiesToSpawn += 1; // More enemies during verse
+                    enemiesToSpawn += 1; // Slight bonus during chorus (reduced from +2)
                 } else if (segment.type === 'bridge' && enemiesToSpawn > 0) {
-                    // 50% chance to reduce enemy count during bridge (calmer section)
-                    if (Math.random() < 0.5) {
-                        enemiesToSpawn -= 1;
-                    }
+                    // Reduce enemy count during bridge (calmer section)
+                    enemiesToSpawn = Math.max(0, enemiesToSpawn - 1);
                 }
+                // Removed verse bonus entirely
             }
             
             // Cap at reasonable number based on maxEnemiesPerBeat, but let BPM influence the cap
