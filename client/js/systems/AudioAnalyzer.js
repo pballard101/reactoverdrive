@@ -253,6 +253,11 @@ export default class AudioAnalyzer {
     }
     
     controlledEnemySpawning(currentTime) {
+        // Skip spawning if using authored level (AuthoredLevelPlayer handles spawning)
+        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
+            return;
+        }
+
         // ENERGY GATE: Don't spawn if music is too quiet
         const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
         if (this.currentVolume < ENERGY_THRESHOLD) {
@@ -618,6 +623,10 @@ export default class AudioAnalyzer {
         // Removed particle bursts - were too distracting
 
         // Occasionally spawn a "burst" enemy on very strong onsets
+        // Skip if using authored level
+        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
+            return;
+        }
         if (onsetStrength > 0.75 && Math.random() < 0.1 && this.scene.enemyManager) {
             const note = this.getRandomActiveNote();
             this.scene.enemyManager.spawnEnemy(onsetStrength, note);
@@ -1087,6 +1096,11 @@ export default class AudioAnalyzer {
     }
     
     spawnEnemiesOnBeat(beat) {
+        // Skip spawning if using authored level (AuthoredLevelPlayer handles spawning)
+        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
+            return;
+        }
+
         // ENERGY GATE: Don't spawn if music is too quiet
         const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
         if (this.currentVolume < ENERGY_THRESHOLD) {

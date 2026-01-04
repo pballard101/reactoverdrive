@@ -383,8 +383,10 @@ export default class MusicWorm {
         
         // Create a procedural circular worm texture
         const size = 24; // Texture size
-        const canvas = this.scene.textures.createCanvas(textureKey, size, size);
-        const ctx = canvas.getContext('2d');
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create gradient for depth
         const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
@@ -410,9 +412,10 @@ export default class MusicWorm {
         ctx.beginPath();
         ctx.arc(size/2 - 3, size/2 - 3, 4, 0, Math.PI * 2);
         ctx.fill();
-        
-        canvas.refresh();
-        
+
+        // Add canvas as texture
+        this.scene.textures.addCanvas(textureKey, canvas);
+
         return textureKey;
     }
     

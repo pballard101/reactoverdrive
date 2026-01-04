@@ -3,6 +3,7 @@ import Player from '../entities/Player.js';
 import EnemyManager from '../entities/EnemyManager.js';
 import GrubTerminator from '../entities/GrubTerminator.js';
 import AudioAnalyzer from '../systems/AudioAnalyzer.js';
+import AuthoredLevelPlayer from '../systems/AuthoredLevelPlayer.js';
 import ParticleSystem from '../systems/ParticleSystem.js';
 import UIManager from '../systems/UIManager.js';
 import PowerupManager from '../systems/PowerupManager.js';
@@ -36,6 +37,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     preload() {
+        console.log("🔧 GameScene.preload() called - songData:", this.songData ? "present" : "MISSING");
         if (this.songData) {
             const basePath = this.songData.path;
             const filename = this.songData.filename;
@@ -61,18 +63,27 @@ export default class GameScene extends Phaser.Scene {
             const analysisFile = `${baseFilename}_analysis.json`;
             const jsonPath = `${analysisBasePath}/${analysisFile}`;
 
+            // Authored level file path
+            const levelFile = `${baseFilename}.level.json`;
+            const levelPath = `${analysisBasePath}/${levelFile}`;
+
             console.log("📊 Computed paths:", {
                 audioPath: audioPath,
                 jsonPath: jsonPath,
+                levelPath: levelPath,
                 isFullPath: isFullPath
             });
 
-            // Queue both audio and JSON for loading (don't start yet)
+            // Queue audio, analysis JSON, and level JSON for loading
             console.log("📦 Queueing audio file:", audioPath);
             this.load.audio('music', audioPath);
 
             console.log("📦 Queueing JSON file:", jsonPath);
             this.load.json('audioData', jsonPath);
+
+            // Try to load authored level file (optional - may not exist for all songs)
+            console.log("📦 Queueing level file:", levelPath);
+            this.load.json('authoredLevel', levelPath);
 
             // Add loaders with better error handling
             this.load.on('filecomplete-audio-music', (key, type, data) => {
@@ -86,19 +97,30 @@ export default class GameScene extends Phaser.Scene {
                 this.audioData = data;
             });
 
+            this.load.on('filecomplete-json-authoredLevel', (key, type, data) => {
+                console.log("✅ Authored level loaded successfully!");
+                console.log("   - Spawn events:", data.spawn_events ? data.spawn_events.length : 0);
+                console.log("   - Sections:", data.sections ? data.sections.length : 0);
+                console.log("   - Drops:", data.drops ? data.drops.length : 0);
+            });
+
             // Add error handlers for the file loads
             this.load.on('loaderror', (fileObj) => {
-                console.error(`❌ LOADER ERROR:`, {
-                    key: fileObj.key,
-                    url: fileObj.url,
-                    type: fileObj.type
-                });
+                // Only log errors for critical files, not optional ones
+                if (fileObj.key !== 'authoredLevel') {
+                    console.error(`❌ LOADER ERROR:`, {
+                        key: fileObj.key,
+                        url: fileObj.url,
+                        type: fileObj.type
+                    });
+                }
             });
 
             this.load.once('complete', () => {
                 console.log("🏁 Phaser loader complete");
                 console.log("   - Audio in cache:", this.cache.audio.exists('music'));
                 console.log("   - JSON in cache:", this.cache.json.exists('audioData'));
+                console.log("   - Level in cache:", this.cache.json.exists('authoredLevel'));
 
                 if (this.cache.json.exists('audioData')) {
                     this.audioData = this.cache.json.get('audioData');
@@ -107,11 +129,17 @@ export default class GameScene extends Phaser.Scene {
                     console.error(`❌ audioData not found in cache after load completed!`);
                     console.error("   The JSON file failed to load");
                 }
+
+                // Store authored level data for later use in create()
+                if (this.cache.json.exists('authoredLevel')) {
+                    this.authoredLevelData = this.cache.json.get('authoredLevel');
+                    console.log("✅ Retrieved authoredLevel from cache");
+                }
             });
 
-            // Start the loader ONCE - loads both audio and JSON together
-            console.log("🚀 Starting Phaser loader (will load audio + JSON)");
-            this.load.start();
+            // Phaser automatically starts the loader after preload() completes
+            // and waits for all files to load before calling create()
+            console.log("🚀 Files queued for loading (Phaser will start automatically)");
         } else {
             console.error("❌ No song data provided to GameScene");
         }
@@ -270,6 +298,25 @@ export default class GameScene extends Phaser.Scene {
 
         // Create commentator
         this.commentator = new Commentator(this);
+
+        // Create authored level player for pre-authored levels
+        this.authoredLevelPlayer = new AuthoredLevelPlayer(this);
+
+        // Load authored level data - check cache directly since preload callbacks may not have run yet
+        if (!this.authoredLevelData && this.cache.json.exists('authoredLevel')) {
+            this.authoredLevelData = this.cache.json.get('authoredLevel');
+            console.log("✅ Retrieved authoredLevel from cache in create()");
+        }
+
+        if (this.authoredLevelData) {
+            const loaded = this.authoredLevelPlayer.loadLevel(this.authoredLevelData);
+            if (loaded) {
+                console.log("🎮 Using AUTHORED level for deterministic spawning");
+                console.log("   - Spawn events:", this.authoredLevelData.spawn_events?.length || 0);
+            }
+        } else {
+            console.log("📝 No authored level found - using real-time audio analysis for spawning");
+        }
 
         // Setup controls
         this.setupControls();
@@ -987,11 +1034,18 @@ export default class GameScene extends Phaser.Scene {
         // DIRECT BULLET-ENEMY COLLISION SETUP
         this.setupBulletCollisions();
         
-        // Initial enemy spawn
-        if (this.enemyManager && typeof this.enemyManager.spawnEnemy === 'function') {
-            this.enemyManager.spawnEnemy(0.5);
+        // Start authored level player if we have an authored level
+        if (this.authoredLevelPlayer && this.authoredLevelPlayer.hasAuthoredLevel()) {
+            console.log("🎮 Starting authored level playback");
+            this.authoredLevelPlayer.start();
+            // Skip initial enemy spawn - authored level handles all spawning
+        } else {
+            // Fallback: Initial enemy spawn (only when not using authored level)
+            if (this.enemyManager && typeof this.enemyManager.spawnEnemy === 'function') {
+                this.enemyManager.spawnEnemy(0.5);
+            }
         }
-        
+
         // Initial powerup
         if (this.powerupManager && typeof this.powerupManager.spawnPowerupHex === 'function') {
             this.powerupManager.spawnPowerupHex();
@@ -1292,16 +1346,27 @@ export default class GameScene extends Phaser.Scene {
     update() {
         // Skip if game not started
         if (!this.isGameStarted) return;
-        
-        // Regular update calls
+
+        // Calculate current music time
+        const currentMusicTime = (this.time.now - this.gameStartTime) / 1000;
+
+        // Update authored level player if using authored level
+        // This handles all spawning based on pre-authored events
+        if (this.authoredLevelPlayer && this.authoredLevelPlayer.hasAuthoredLevel()) {
+            this.authoredLevelPlayer.update(currentMusicTime);
+        }
+
+        // Regular update calls - AudioAnalyzer still handles visual effects and beat detection
         if (this.audioAnalyzer) {
             this.audioAnalyzer.update();
         }
-        
+
         if (this.player && typeof this.player.update === 'function') {
             this.player.update();
         }
-        
+
+        // EnemyManager update handles breathing effects and worm updates
+        // When using authored level, spawning is handled by AuthoredLevelPlayer
         if (this.enemyManager && typeof this.enemyManager.update === 'function') {
             this.enemyManager.update();
         }

@@ -180,9 +180,8 @@ export default class EnemyManager {
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
-        canvas.willReadFrequently = true; // Add this attribute to optimize
-        
-        const ctx = canvas.getContext('2d');
+
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Clear canvas
         ctx.clearRect(0, 0, size, size);
@@ -290,7 +289,7 @@ export default class EnemyManager {
         const enemy = this.scene.physics.add.sprite(
             gameWidth, // Spawn at right edge
             yPosition, // Y position based on note or random
-            textureName
+            finalTextureName
         );
         
         // Store size factors for debugging and visualization
@@ -1079,7 +1078,9 @@ export default class EnemyManager {
             }
         });
         
-        // Check for worm spawning based on musical analysis (deterministic)
+        // Check for worm spawning based on musical analysis
+        // Worms spawn independently of authored level system for variety
+
         // Check every 10 frames to avoid excessive CPU usage
         if (this.scene.time.now % 167 < 16) { // Roughly every 10 frames at 60fps
             if (this.shouldSpawnWorm()) {
@@ -1137,7 +1138,7 @@ export default class EnemyManager {
                 const canvas = document.createElement('canvas');
                 canvas.width = pSize;
                 canvas.height = pSize;
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                 // Different particles for different enemy types
                 if (enemyType === 'circle') {
@@ -1357,7 +1358,7 @@ export default class EnemyManager {
                 const particleCanvas = document.createElement('canvas');
                 particleCanvas.width = particleSize;
                 particleCanvas.height = particleSize;
-                const particleCtx = particleCanvas.getContext('2d');
+                const particleCtx = particleCanvas.getContext('2d', { willReadFrequently: true });
 
                 // Create a glowing particle with radial gradient
                 const gradient = particleCtx.createRadialGradient(

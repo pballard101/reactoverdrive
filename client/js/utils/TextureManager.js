@@ -164,13 +164,11 @@ export default class TextureManager {
     // Create a star particle using canvas (more reliable than graphics)
     createStarParticleWithCanvas() {
         try {
-            // Create canvas with willReadFrequently flag
             const canvas = document.createElement('canvas');
             canvas.width = 16;
             canvas.height = 16;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             
             // Clear canvas
             ctx.clearRect(0, 0, 16, 16);
@@ -202,13 +200,11 @@ export default class TextureManager {
     // Create a glow particle using canvas
     createGlowParticleWithCanvas() {
         try {
-            // Create canvas with willReadFrequently flag
             const canvas = document.createElement('canvas');
             canvas.width = 16;
             canvas.height = 16;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             
             // Clear canvas
             ctx.clearRect(0, 0, 16, 16);
@@ -239,13 +235,11 @@ export default class TextureManager {
     // Create a regular particle with canvas
     createRegularParticleWithCanvas() {
         try {
-            // Create canvas with willReadFrequently flag
             const canvas = document.createElement('canvas');
             canvas.width = 8;
             canvas.height = 8;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             
             // Clear canvas
             ctx.clearRect(0, 0, 8, 8);
@@ -276,13 +270,11 @@ export default class TextureManager {
     // Create a line particle with canvas
     createLineParticleWithCanvas() {
         try {
-            // Create canvas with willReadFrequently flag
             const canvas = document.createElement('canvas');
             canvas.width = 2;
             canvas.height = 10;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             
             // Clear canvas
             ctx.clearRect(0, 0, 2, 10);
@@ -312,13 +304,11 @@ export default class TextureManager {
     // Create a laser beam texture with canvas
     createLaserBeamWithCanvas() {
         try {
-            // Create canvas with willReadFrequently flag
             const canvas = document.createElement('canvas');
             canvas.width = 100;
             canvas.height = 8;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             
             // Clear canvas
             ctx.clearRect(0, 0, 100, 8);
@@ -403,13 +393,11 @@ export default class TextureManager {
                 const hexString = '#' + color.toString(16).padStart(6, '0');
                 const colorName = powerupHexColorNames[index];
                 
-                // Create canvas with willReadFrequently flag
                 const canvas = document.createElement('canvas');
                 canvas.width = hexSize;
                 canvas.height = hexSize;
-                canvas.willReadFrequently = true;
-                
-                const ctx = canvas.getContext('2d');
+
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
                 
                 // Clear canvas
                 ctx.clearRect(0, 0, hexSize, hexSize);
