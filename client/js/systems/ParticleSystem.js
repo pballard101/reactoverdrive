@@ -258,17 +258,15 @@ export default class ParticleSystem {
         console.log("Creating specialized star-particle texture");
         
         try {
-            // Create a canvas with willReadFrequently=true to optimize performance
             const canvas = document.createElement('canvas');
             canvas.width = 16;
             canvas.height = 16;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
-            
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
             // Clear canvas
             ctx.clearRect(0, 0, 16, 16);
-            
+
             // Create a radial gradient for a better looking particle
             const gradient = ctx.createRadialGradient(8, 8, 1, 8, 8, 8);
             gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');   // White center
@@ -299,17 +297,15 @@ export default class ParticleSystem {
     
     createGlowParticleTexture() {
         try {
-            // Create a canvas with willReadFrequently=true to optimize performance
             const canvas = document.createElement('canvas');
             canvas.width = 16;
             canvas.height = 16;
-            canvas.willReadFrequently = true;
-            
-            const ctx = canvas.getContext('2d');
-            
+
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
             // Clear canvas
             ctx.clearRect(0, 0, 16, 16);
-            
+
             // Create a radial gradient for a soft glow
             const gradient = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
             gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');   // Almost white center  

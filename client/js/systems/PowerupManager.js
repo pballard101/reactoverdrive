@@ -33,13 +33,11 @@ export default class PowerupManager {
             const colorName = this.powerupHexColorNames[this.powerupHexColorIndex];
             const color = this.powerupHexColors[this.powerupHexColorIndex];
 
-            // Create a canvas with willReadFrequently=true to optimize
             const canvas = document.createElement('canvas');
             canvas.width = hexSize * 2;
             canvas.height = hexSize * 2;
-            canvas.willReadFrequently = true;
 
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
             // Clear canvas
             ctx.clearRect(0, 0, hexSize * 2, hexSize * 2);
@@ -129,9 +127,8 @@ export default class PowerupManager {
                         const canvas = document.createElement('canvas');
                         canvas.width = hexSize * 2;
                         canvas.height = hexSize * 2;
-                        canvas.willReadFrequently = true;
 
-                        const ctx = canvas.getContext('2d');
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
                         // Clear canvas
                         ctx.clearRect(0, 0, hexSize * 2, hexSize * 2);
@@ -298,8 +295,7 @@ export default class PowerupManager {
             const canvas = document.createElement('canvas');
             canvas.width = radius * 2;
             canvas.height = radius * 2;
-            canvas.willReadFrequently = true;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
             // Clear canvas
             ctx.clearRect(0, 0, radius * 2, radius * 2);
@@ -492,7 +488,7 @@ export default class PowerupManager {
             const particleCanvas = document.createElement('canvas');
             particleCanvas.width = particleSize;
             particleCanvas.height = particleSize;
-            const particleCtx = particleCanvas.getContext('2d');
+            const particleCtx = particleCanvas.getContext('2d', { willReadFrequently: true });
 
             // Draw a 5-pointed star
             const centerX = particleSize / 2;

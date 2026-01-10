@@ -1,17 +1,18 @@
 FROM python:3.10-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (--no-install-recommends reduces memory usage during build)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     gcc \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy requirements and install dependencies with extended timeout for slow networks
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --timeout 300 -r requirements.txt
 
 # Copy application files (excluding directories that will be mounted)
 COPY server ./server

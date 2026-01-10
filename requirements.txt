@@ -7,6 +7,7 @@ pyacoustid>=1.2.0  # For audio fingerprinting and song identification
 
 # Web server
 flask>=2.0.0
+werkzeug>=2.0.0,<3.0.0  # Pin to compatible version with Flask
 requests>=2.25.0
 
 # Recommended but optional
