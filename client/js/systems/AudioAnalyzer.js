@@ -247,102 +247,8 @@ export default class AudioAnalyzer {
             this.currentSegmentIndex = 0;
             this.nextOnsetIndex = 0; // Reset onset tracking too
         }
-        
-        // Spawn enemies at a controlled rate even if beat detection fails
-        this.controlledEnemySpawning(currentTime);
-    }
-    
-    controlledEnemySpawning(currentTime) {
-        // Skip spawning if using authored level (AuthoredLevelPlayer handles spawning)
-        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
-            return;
-        }
 
-        // ENERGY GATE: Don't spawn if music is too quiet
-        const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
-        if (this.currentVolume < ENERGY_THRESHOLD) {
-            return; // Skip spawning during quiet parts
-        }
-
-        // Only spawn enemies if enough time has passed since the last spawn
-        const minTimeBetweenSpawns = 2.0; // Balanced delay (2 seconds)
-
-        // Count existing enemies for performance management only
-        let enemyCount = 0;
-        this.scene.children.list.forEach(obj => {
-            if (obj.enemyType && obj.enemyType !== 'powerupHex') {
-                enemyCount++;
-            }
-        });
-
-        // ENHANCED: Use actual segment energy value instead of just type
-        let segmentEnergyMultiplier = 1.0;
-        if (this.audioData && this.audioData.segments && this.currentSegmentIndex < this.audioData.segments.length) {
-            const segment = this.audioData.segments[this.currentSegmentIndex];
-
-            // Use segment's actual energy level (typically 0.3-0.5 range)
-            // Normalize to 0.5-1.5 multiplier for spawn rate
-            if (typeof segment.energy === 'number') {
-                segmentEnergyMultiplier = 0.5 + (segment.energy * 2.0);
-            } else {
-                // Fallback to type-based multiplier if no energy data
-                if (segment.type === 'chorus') segmentEnergyMultiplier = 1.5;
-                else if (segment.type === 'bridge') segmentEnergyMultiplier = 0.8;
-            }
-        }
-        
-        // Calculate adaptive enemy cap based on current BPM
-        // Faster songs (higher BPM) can have more enemies
-        // Range: 25 enemies at 60 BPM to 50 enemies at 180+ BPM
-        const baseCap = 25;
-        const bpmBonus = Math.max(0, Math.min(25, (this.currentBPM - 60) / 5));
-        const enemyCap = Math.round(baseCap + bpmBonus);
-        
-        // Only spawn if we're under the adaptive cap and enough time has passed
-        if (enemyCount < enemyCap && currentTime - this.lastEnemySpawnTime > minTimeBetweenSpawns) {
-            // Spawn enemies with controlled strength
-            if (this.scene.enemyManager && typeof this.scene.enemyManager.spawnEnemy === 'function') {
-                // Determine how many enemies to spawn based on BPM and segment energy
-                let enemiesToSpawn = 1;
-
-                // For faster music (higher BPM), spawn more enemies per batch
-                if (this.currentBPM > 150) {
-                    enemiesToSpawn = 3; // Very fast music
-                } else if (this.currentBPM > 120) {
-                    enemiesToSpawn = 2; // Moderately fast music
-                }
-
-                // Apply segment energy multiplier to spawn count
-                enemiesToSpawn = Math.round(enemiesToSpawn * segmentEnergyMultiplier);
-                enemiesToSpawn = Math.max(1, enemiesToSpawn); // At least 1
-
-                // Spawn the enemies
-                for (let i = 0; i < enemiesToSpawn; i++) {
-                    // Use wider and higher strength range (0.3-0.7 instead of 0.3-0.6)
-                    const randomStrength = 0.3 + (Math.random() * 0.4);
-
-                    // Scale strength by segment energy multiplier
-                    const finalStrength = Math.min(0.9, randomStrength * segmentEnergyMultiplier);
-                    
-                    // Get a random note from current active notes
-                    const note = this.getRandomActiveNote();
-                        
-                    // Spawn enemy with both strength and note
-                    this.scene.enemyManager.spawnEnemy(finalStrength, note);
-                }
-                
-                this.lastEnemySpawnTime = currentTime;
-                
-                // Occasionally spawn a powerup - increased chance from 5% to 10%
-                const canSpawnPowerup = this.scene.enemyManager.spawnPowerupHex && 
-                                        typeof this.scene.enemyManager.spawnPowerupHex === 'function' &&
-                                        (!this.scene.enemyManager.powerupHex || !this.scene.enemyManager.powerupHex.active);
-                                        
-                if (Math.random() < 0.1 && canSpawnPowerup) {
-                    this.scene.enemyManager.spawnPowerupHex();
-                }
-            }
-        }
+        // Enemy spawning removed - AuthoredLevelPlayer handles all spawning
     }
     
     resetBeatIndex(currentTime) {
@@ -620,17 +526,7 @@ export default class AudioAnalyzer {
             this.scene.cameraManager.shake(40, shakeIntensity); // Shorter duration
         }
 
-        // Removed particle bursts - were too distracting
-
-        // Occasionally spawn a "burst" enemy on very strong onsets
-        // Skip if using authored level
-        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
-            return;
-        }
-        if (onsetStrength > 0.75 && Math.random() < 0.1 && this.scene.enemyManager) {
-            const note = this.getRandomActiveNote();
-            this.scene.enemyManager.spawnEnemy(onsetStrength, note);
-        }
+        // Enemy spawning removed - AuthoredLevelPlayer handles all spawning
     }
 
     // Track last segment type for comparison to avoid duplicate effects
@@ -1096,116 +992,8 @@ export default class AudioAnalyzer {
     }
     
     spawnEnemiesOnBeat(beat) {
-        // Skip spawning if using authored level (AuthoredLevelPlayer handles spawning)
-        if (this.scene.authoredLevelPlayer && this.scene.authoredLevelPlayer.hasAuthoredLevel()) {
-            return;
-        }
-
-        // ENERGY GATE: Don't spawn if music is too quiet
-        const ENERGY_THRESHOLD = 0.35; // Balanced threshold (35%)
-        if (this.currentVolume < ENERGY_THRESHOLD) {
-            return; // Skip spawning during quiet parts
-        }
-
-        // Make sure enemyManager exists and has spawnEnemy function
-        if (!this.scene.enemyManager || typeof this.scene.enemyManager.spawnEnemy !== 'function') {
-            console.error("Enemy manager not found or missing spawnEnemy function!");
-            return;
-        }
-
-        // Calculate adaptive enemy cap based on current BPM
-        // Faster songs (higher BPM) can have more enemies
-        // Range: 25 enemies at 60 BPM to 50 enemies at 180+ BPM
-        const baseCap = 25;
-        const bpmBonus = Math.max(0, Math.min(25, (this.currentBPM - 60) / 5));
-        const enemyCap = Math.round(baseCap + bpmBonus);
-
-        // Count existing enemies to prevent performance issues
-        let enemyCount = 0;
-        this.scene.children.list.forEach(obj => {
-            if (obj.enemyType && obj.enemyType !== 'powerupHex') {
-                enemyCount++;
-            }
-        });
-        
-        // Only spawn if we're below the adaptive cap
-        if (enemyCount < enemyCap) {
-            // Determine enemy count based on beat strength, BPM, and segment type
-            let enemiesToSpawn = 0;
-
-            // Base enemy count on beat strength (BALANCED)
-            if (beat.strength > 0.75) {
-                enemiesToSpawn = 2; // Very strong beat
-            } else if (beat.strength > 0.5) {
-                enemiesToSpawn = 1; // Medium-strong beat
-            } else if (beat.strength > 0.35) {
-                enemiesToSpawn = Math.random() < 0.6 ? 1 : 0; // Weaker beat - 60% chance
-            } else if (beat.strength > 0.25) {
-                enemiesToSpawn = Math.random() < 0.3 ? 1 : 0; // Very weak beat - 30% chance
-            }
-
-            // Adjust based on BPM - faster songs spawn slightly more
-            const bpmFactor = Math.min(1.4, this.currentBPM / 130); // Balanced multiplier
-            enemiesToSpawn = Math.round(enemiesToSpawn * bpmFactor);
-
-            // Ensure at least 1 enemy for medium-strength beats
-            if (beat.strength > 0.4 && enemiesToSpawn === 0) {
-                enemiesToSpawn = 1;
-            }
-            
-            // Modify based on segment type (REDUCED bonuses)
-            if (this.audioData.segments && this.currentSegmentIndex < this.audioData.segments.length) {
-                const segment = this.audioData.segments[this.currentSegmentIndex];
-                if (segment.type === 'chorus') {
-                    enemiesToSpawn += 1; // Slight bonus during chorus (reduced from +2)
-                } else if (segment.type === 'bridge' && enemiesToSpawn > 0) {
-                    // Reduce enemy count during bridge (calmer section)
-                    enemiesToSpawn = Math.max(0, enemiesToSpawn - 1);
-                }
-                // Removed verse bonus entirely
-            }
-            
-            // Cap at reasonable number based on maxEnemiesPerBeat, but let BPM influence the cap
-            const dynamicCap = Math.round(this.maxEnemiesPerBeat * bpmFactor);
-            enemiesToSpawn = Math.min(enemiesToSpawn, dynamicCap);
-            
-            // Ensure positive number
-            enemiesToSpawn = Math.max(0, enemiesToSpawn);
-            
-            // Spawn multiple enemies with varying strength - positioned in sync with beat
-            for (let i = 0; i < enemiesToSpawn; i++) {
-                if (enemyCount + i >= enemyCap) break; // Safety check
-                
-                // Vary strength slightly for each enemy
-                const variation = (Math.random() * 0.2) - 0.1; // -0.1 to +0.1
-                const adjustedStrength = Math.min(0.8, beat.strength + variation);
-                
-                // Get a random note from current active notes if available
-                const note = this.getRandomActiveNote();
-                
-                // Spawn enemy with adjusted strength and note
-                const enemy = this.scene.enemyManager.spawnEnemy(adjustedStrength, note);
-                
-                // Add "beat spawned" property to track enemies that came from beats
-                if (enemy) {
-                    enemy.beatSpawned = true;
-                    enemy.beatStrength = beat.strength;
-                    
-                    // Make the enemy briefly pulse to show it's tied to the beat
-                    this.scene.tweens.add({
-                        targets: enemy,
-                        scale: 1.3,
-                        duration: 150,
-                        yoyo: true,
-                        ease: 'Sine.easeOut'
-                    });
-                }
-            }
-            
-            // Update last spawn time
-            this.lastEnemySpawnTime = (this.scene.time.now - this.scene.gameStartTime) / 1000;
-        } else {
-        }
+        // Enemy spawning removed - AuthoredLevelPlayer handles all spawning
+        return;
     }
     
     /**

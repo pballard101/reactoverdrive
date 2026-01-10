@@ -26,6 +26,10 @@ export default class AuthoredLevelPlayer {
         this.spawnedCount = 0;
         this.lastUpdateTime = 0;
 
+        // Beat sync tracking
+        this.beatTimes = [];
+        this.nextBeatIndex = 0;
+
         // Motion calculation cache
         this.motionCalculators = {
             linear: this.calculateLinearMotion.bind(this),
@@ -50,6 +54,10 @@ export default class AuthoredLevelPlayer {
 
         this.level = levelData;
         this.isLoaded = true;
+
+        // Load beat times for beat-sync effects
+        this.beatTimes = levelData.beat_times || [];
+
         this.reset();
 
         console.log(`AuthoredLevelPlayer: Loaded level "${levelData.metadata?.song_id}"`);
@@ -57,6 +65,7 @@ export default class AuthoredLevelPlayer {
         console.log(`  - ${levelData.sections?.length || 0} sections`);
         console.log(`  - ${levelData.drops?.length || 0} drops`);
         console.log(`  - ${levelData.phrases?.length || 0} phrases`);
+        console.log(`  - ${this.beatTimes.length} beat times for sync`);
 
         return true;
     }
@@ -72,6 +81,7 @@ export default class AuthoredLevelPlayer {
         this.currentSection = this.level?.sections?.[0] || null;
         this.spawnedCount = 0;
         this.isPlaying = false;
+        this.nextBeatIndex = 0;
     }
 
     /**
@@ -113,6 +123,9 @@ export default class AuthoredLevelPlayer {
 
         // Update motion for active spawns
         this.updateActiveSpawns(currentTime);
+
+        // Beat-sync pulse effect on enemies
+        this.updateBeatPulse(currentTime);
 
         // Cleanup destroyed spawns
         this.cleanupInactiveSpawns();
@@ -316,6 +329,46 @@ export default class AuthoredLevelPlayer {
      */
     cleanupInactiveSpawns() {
         this.activeSpawns = this.activeSpawns.filter(spawn => spawn.active);
+    }
+
+    // ==========================================================================
+    // BEAT SYNC
+    // ==========================================================================
+
+    /**
+     * Check for beat events and trigger pulse effect
+     */
+    updateBeatPulse(currentTime) {
+        if (!this.beatTimes || this.beatTimes.length === 0) {
+            return;
+        }
+
+        // Process all beats up to current time
+        while (this.nextBeatIndex < this.beatTimes.length &&
+               this.beatTimes[this.nextBeatIndex] <= currentTime) {
+            this.nextBeatIndex++;
+            this.triggerBeatPulse();
+        }
+    }
+
+    /**
+     * Pulse all active enemies on beat
+     * Quick scale: 1.0 → 1.25 → 1.0 over 100ms
+     */
+    triggerBeatPulse() {
+        for (const enemy of this.activeSpawns) {
+            if (!enemy.active) continue;
+
+            // Use Phaser tween for smooth pulse
+            this.scene.tweens.add({
+                targets: enemy,
+                scaleX: 1.25,
+                scaleY: 1.25,
+                duration: 50,
+                yoyo: true,
+                ease: 'Sine.easeOut'
+            });
+        }
     }
 
     // ==========================================================================
