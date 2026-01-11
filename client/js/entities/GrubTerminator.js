@@ -451,7 +451,7 @@ export default class GrubTerminator {
         console.log("🤖 Hiding companion due to player damage");
         
         this.isHidden = true;
-        this.hiddenTimer = 5000; // 5 seconds
+        this.hiddenTimer = 4000; // 4 seconds
         
         // Fade out animation
         this.scene.tweens.add({
