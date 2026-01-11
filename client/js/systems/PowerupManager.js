@@ -271,23 +271,44 @@ export default class PowerupManager {
             const gameWidth = this.scene.gameWidth || 1280;
             const gameHeight = this.scene.gameHeight || 720;
 
-            // Choose power-up type with weighted random
-            // Health: 40%, Energy: 35%, Gun: 25%
-            const roll = Math.random() * 100;
+            // Check what the player actually needs
+            const player = this.scene.player;
+            const needsHealth = player.health < 100;
+            const needsEnergy = player.energy < 100;
+            const needsGunPower = player.gunPowerLevel < 4;
+
+            // Build list of available powerup types based on what player needs
+            const availableTypes = [];
+            if (needsHealth) availableTypes.push({ type: 'health', color: 0x00ff88, letter: 'H', weight: 40 });
+            if (needsEnergy) availableTypes.push({ type: 'energy', color: 0x0088ff, letter: 'E', weight: 35 });
+            if (needsGunPower) availableTypes.push({ type: 'gunpower', color: 0xff8800, letter: 'G', weight: 25 });
+
+            // If player is maxed out on everything, skip spawning
+            if (availableTypes.length === 0) {
+                console.log('⏭️ Skipping powerup spawn - player is fully maxed out');
+                return null;
+            }
+
+            // Calculate total weight and pick randomly from available types
+            const totalWeight = availableTypes.reduce((sum, t) => sum + t.weight, 0);
+            let roll = Math.random() * totalWeight;
             let type, color, letter;
 
-            if (roll < 40) {
-                type = 'health';
-                color = 0x00ff88; // Green
-                letter = 'H';
-            } else if (roll < 75) {
-                type = 'energy';
-                color = 0x0088ff; // Blue
-                letter = 'E';
-            } else {
-                type = 'gunpower';
-                color = 0xff8800; // Orange
-                letter = 'G';
+            for (const option of availableTypes) {
+                roll -= option.weight;
+                if (roll <= 0) {
+                    type = option.type;
+                    color = option.color;
+                    letter = option.letter;
+                    break;
+                }
+            }
+
+            // Fallback to first available if somehow not set
+            if (!type) {
+                type = availableTypes[0].type;
+                color = availableTypes[0].color;
+                letter = availableTypes[0].letter;
             }
 
             // Create texture (75% size of rotating powerup = 22.5px radius)

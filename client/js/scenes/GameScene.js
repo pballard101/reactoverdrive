@@ -1076,7 +1076,7 @@ export default class GameScene extends Phaser.Scene {
         
         // Use a continuous overlap check for bullets and ALL enemies
         this.time.addEvent({
-            delay: 100, // Check every 100ms
+            delay: 16, // Check every frame (~60fps) for reliable collision detection
             callback: this.checkBulletCollisions,
             callbackScope: this,
             loop: true
